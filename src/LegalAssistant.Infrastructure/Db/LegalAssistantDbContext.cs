@@ -1,6 +1,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using LegalAssistant.Domain.Models;
+using Npgsql;
 
 namespace LegalAssistant.Infrastructure.Db
 {
@@ -14,6 +15,8 @@ namespace LegalAssistant.Infrastructure.Db
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.HasPostgresExtension("vector");
+
             modelBuilder.Entity<Document>(b =>
             {
                 b.ToTable("documents");
@@ -35,6 +38,9 @@ namespace LegalAssistant.Infrastructure.Db
                 b.Property(x => x.Text);
                 b.Property(x => x.CharRange).HasMaxLength(100);
                 b.Property(x => x.SourceUrl).HasMaxLength(2000);
+                b.Property(x => x.Embedding)
+                    .HasColumnName("embedding")
+                    .HasColumnType("vector(768)");
                 b.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
                 b.HasOne(x => x.Document).WithMany(d => d.Chunks).HasForeignKey(x => x.DocumentId);
             });

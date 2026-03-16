@@ -29,64 +29,75 @@ namespace LegalAssistant.Workers
             _logger = logger;
         }
 
-        public override Task StartAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "rabbitmq";
             var port = int.TryParse(Environment.GetEnvironmentVariable("RABBITMQ_PORT"), out var p) ? p : 5672;
             var user = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
             var pass = Environment.GetEnvironmentVariable("RABBITMQ_PASS") ?? "guest";
 
-            var factory = new ConnectionFactory() { HostName = host, Port = port, UserName = user, Password = pass };
-            _connection = factory.CreateConnection();
-            _channel = _connection.CreateModel();
-            _channel.ExchangeDeclare("ingest", ExchangeType.Fanout, durable: true);
-            var queueName = _channel.QueueDeclare().QueueName;
-            _channel.QueueBind(queueName, "ingest", "");
+            var factory = new ConnectionFactory() { HostName = host, Port = port, UserName = user, Password = pass, AutomaticRecoveryEnabled = true };
 
-            _logger.LogInformation("RabbitMQ consumer connected to {Host}:{Port}", host, port);
-            return base.StartAsync(cancellationToken);
-        }
-
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            if (_channel == null) return Task.CompletedTask;
-
-            var consumer = new EventingBasicConsumer(_channel);
-            consumer.Received += async (sender, ea) =>
+            while (!stoppingToken.IsCancellationRequested)
             {
-                var body = ea.Body.ToArray();
-                var payload = Encoding.UTF8.GetString(body);
-                _logger.LogInformation("Received ingest message, corrId={Corr}", ea.BasicProperties?.CorrelationId);
-
                 try
                 {
-                    using var scope = _sp.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<LegalAssistantDbContext>();
-                    // correlation id is job id
-                    if (Guid.TryParse(ea.BasicProperties?.CorrelationId, out var jobId))
+                    _connection?.Dispose();
+                    _connection = factory.CreateConnection();
+                    _channel = _connection.CreateModel();
+                    _channel.ExchangeDeclare("ingest", ExchangeType.Fanout, durable: true);
+                    var queueName = _channel.QueueDeclare().QueueName;
+                    _channel.QueueBind(queueName, "ingest", "");
+
+                    _logger.LogInformation("RabbitMQ consumer connected to {Host}:{Port}", host, port);
+
+                    var consumer = new EventingBasicConsumer(_channel);
+                    consumer.Received += async (sender, ea) =>
                     {
-                        var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == jobId, stoppingToken);
-                        if (job != null)
+                        var body = ea.Body.ToArray();
+                        var payload = Encoding.UTF8.GetString(body);
+                        _logger.LogInformation("Received ingest message, corrId={Corr}", ea.BasicProperties?.CorrelationId);
+
+                        try
                         {
-                            job.Payload = payload;
-                            await db.SaveChangesAsync(stoppingToken);
+                            using var scope = _sp.CreateScope();
+                            var db = scope.ServiceProvider.GetRequiredService<LegalAssistantDbContext>();
+                            // correlation id is job id
+                            if (Guid.TryParse(ea.BasicProperties?.CorrelationId, out var jobId))
+                            {
+                                var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == jobId, stoppingToken);
+                                if (job != null)
+                                {
+                                    job.Payload = payload;
+                                    await db.SaveChangesAsync(stoppingToken);
+                                }
+                            }
+
+                            // ack
+                            _channel.BasicAck(ea.DeliveryTag, multiple: false);
                         }
-                    }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error processing ingest message");
+                            // reject and requeue
+                            _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: true);
+                        }
+                    };
 
-                    // ack
-                    _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                    _channel.BasicConsume(queue: queueName, autoAck: false, consumerTag: "", noLocal: false, exclusive: false, arguments: null, consumer: consumer);
+
+                    // Wait until cancellation
+                    var tcs = new TaskCompletionSource();
+                    using var reg = stoppingToken.Register(() => tcs.TrySetResult());
+                    await tcs.Task;
+                    break;
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is RabbitMQ.Client.Exceptions.BrokerUnreachableException || ex is System.Net.Sockets.SocketException)
                 {
-                    _logger.LogError(ex, "Error processing ingest message");
-                    // reject and requeue
-                    _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: true);
+                    _logger.LogWarning("RabbitMQ is not reachable in RabbitMqConsumerService. Retrying in 5 seconds...");
+                    await Task.Delay(5000, stoppingToken);
                 }
-            };
-
-            var queueName = _channel.QueueDeclare().QueueName;
-            _channel.BasicConsume(queue: queueName, autoAck: false, consumer: consumer);
-            return Task.CompletedTask;
+            }
         }
 
         public override void Dispose()

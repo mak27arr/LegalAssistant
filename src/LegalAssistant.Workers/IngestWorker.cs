@@ -10,6 +10,7 @@ using System.Text.Json;
 using LegalAssistant.Domain.Models;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using LegalAssistant.Workers.Embeddings;
 
 namespace LegalAssistant.Workers
 {
@@ -17,11 +18,13 @@ namespace LegalAssistant.Workers
     {
         private readonly IServiceProvider _sp;
         private readonly ILogger<IngestWorker> _logger;
+        private readonly IEmbeddingService _embeddingService;
 
-        public IngestWorker(IServiceProvider sp, ILogger<IngestWorker> logger)
+        public IngestWorker(IServiceProvider sp, ILogger<IngestWorker> logger, IEmbeddingService embeddingService)
         {
             _sp = sp;
             _logger = logger;
+            _embeddingService = embeddingService;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -101,6 +104,7 @@ namespace LegalAssistant.Workers
                             {
                                 var len = Math.Min(fallbackSize, text.Length - idx);
                                 var chunkText = text.Substring(idx, len);
+                                var embedding = await _embeddingService.GetEmbeddingAsync(chunkText, stoppingToken);
                                 var chunk = new DocumentChunk
                                 {
                                     Id = Guid.NewGuid(),
@@ -108,7 +112,8 @@ namespace LegalAssistant.Workers
                                     ChunkIndex = chunkIndex++,
                                     Text = chunkText,
                                     CharRange = $"{idx}-{idx + len}",
-                                    SourceUrl = doc.Url
+                                    SourceUrl = doc.Url,
+                                    Embedding = new Pgvector.Vector(embedding)
                                 };
                                 await db.DocumentChunks.AddAsync(chunk, stoppingToken);
                                 idx += len;
@@ -139,6 +144,7 @@ namespace LegalAssistant.Workers
                                     var chunkText = articleText.Substring(localIdx, len);
 
                                     var globalStart = start + localIdx;
+                                    var embedding = await _embeddingService.GetEmbeddingAsync(chunkText, stoppingToken);
                                     var chunk = new DocumentChunk
                                     {
                                         Id = Guid.NewGuid(),
@@ -146,7 +152,8 @@ namespace LegalAssistant.Workers
                                         ChunkIndex = chunkIndex++,
                                         Text = chunkText,
                                         CharRange = $"{globalStart}-{globalStart + len}",
-                                        SourceUrl = doc.Url
+                                        SourceUrl = doc.Url,
+                                        Embedding = new Pgvector.Vector(embedding)
                                     };
                                     await db.DocumentChunks.AddAsync(chunk, stoppingToken);
 

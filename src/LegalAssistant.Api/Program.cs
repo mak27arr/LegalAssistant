@@ -22,7 +22,7 @@ if (string.IsNullOrEmpty(conn))
 }
 else
 {
-    builder.Services.AddDbContext<LegalAssistantDbContext>(opt => opt.UseNpgsql(conn));
+    builder.Services.AddDbContext<LegalAssistantDbContext>(opt => opt.UseNpgsql(conn, o => o.UseVector()));
 }
 
 // Messaging - use RabbitMQ publisher

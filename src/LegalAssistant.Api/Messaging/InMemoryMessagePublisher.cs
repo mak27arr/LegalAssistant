@@ -54,7 +54,7 @@ namespace LegalAssistant.Api.Messaging
             if (!string.IsNullOrEmpty(key)) 
                 props.CorrelationId = key;
 
-            ch.BasicPublish(exchange: topic, routingKey: "", basicProperties: props, body: body);
+            ch.BasicPublish(exchange: topic, routingKey: "", mandatory: false, basicProperties: props, body: body);
             _logger.LogInformation("Published to RabbitMQ exchange {Topic} correlation={Corr}", topic, props.CorrelationId);
             return Task.CompletedTask;
         }

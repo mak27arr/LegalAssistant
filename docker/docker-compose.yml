@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     restart: always
     environment:
       POSTGRES_USER: legal
@@ -39,6 +39,15 @@ services:
     volumes:
       - minio_data:/data
 
+  embeddings:
+    build:
+      context: ..
+      dockerfile: src/LegalAssistant.Embeddings/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "8080:80"
+
   api:
     build:
       context: ..
@@ -59,6 +68,7 @@ services:
     depends_on:
       - postgres
       - rabbitmq
+      - embeddings
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=legalassistant;Username=legal;Password=legalpw
@@ -66,6 +76,7 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USER=guest
       - RABBITMQ_PASS=guest
+      - Embeddings__BaseUrl=http://embeddings
     command: dotnet LegalAssistant.Workers.dll
 
 volumes:
