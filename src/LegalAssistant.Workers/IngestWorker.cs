@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using LegalAssistant.Domain.Models;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 
 namespace LegalAssistant.Workers
 {
@@ -25,7 +26,7 @@ namespace LegalAssistant.Workers
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("IngestWorker started");
+            _logger.LogInformation("IngestWorker started"); 
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -64,7 +65,9 @@ namespace LegalAssistant.Workers
                             var resp = await http.GetAsync(payload.Url, stoppingToken);
                             if (resp.IsSuccessStatusCode)
                             {
-                                doc.Content = await resp.Content.ReadAsStringAsync(stoppingToken);
+                                var html = await resp.Content.ReadAsStringAsync(stoppingToken);
+                                var plain = StripHtml(html);
+                                doc.Content = plain;
                                 db.Documents.Update(doc);
                                 await db.SaveChangesAsync(stoppingToken);
                             }
@@ -79,26 +82,78 @@ namespace LegalAssistant.Workers
                         }
                     }
 
-                    // rudimentary chunking: split by 2000 chars
-                    var text = string.IsNullOrWhiteSpace(doc.Content) ? "" : doc.Content;
-                    int chunkSize = 2000;
-                    int idx = 0;
+                    // chunking by articles ("Стаття {номер}") with fallback to fixed-size chunks for long articles
+                    var text = string.IsNullOrWhiteSpace(doc.Content) ? string.Empty : doc.Content;
                     int chunkIndex = 0;
-                    while (idx < text.Length)
+
+                    if (!string.IsNullOrWhiteSpace(text))
                     {
-                        var len = Math.Min(chunkSize, text.Length - idx);
-                        var chunkText = text.Substring(idx, len);
-                        var chunk = new DocumentChunk
+                        // Regex для заголовків статей, наприклад: "Стаття 1.", "Стаття 1-1", "Стаття 15¹" тощо
+                        var articleRegex = new Regex(@"Стаття\s+\d+[\d¹²³]*[\w\-]*", RegexOptions.Multiline | RegexOptions.CultureInvariant);
+                        var matches = articleRegex.Matches(text);
+
+                        if (matches.Count == 0)
                         {
-                            Id = Guid.NewGuid(),
-                            DocumentId = doc.Id,
-                            ChunkIndex = chunkIndex++,
-                            Text = chunkText,
-                            CharRange = $"{idx}-{idx+len}",
-                            SourceUrl = doc.Url
-                        };
-                        await db.DocumentChunks.AddAsync(chunk, stoppingToken);
-                        idx += len;
+                            // Якщо статті не знайдені, fallback до старої поведінки по 2000 символів
+                            int fallbackSize = 2000;
+                            int idx = 0;
+                            while (idx < text.Length)
+                            {
+                                var len = Math.Min(fallbackSize, text.Length - idx);
+                                var chunkText = text.Substring(idx, len);
+                                var chunk = new DocumentChunk
+                                {
+                                    Id = Guid.NewGuid(),
+                                    DocumentId = doc.Id,
+                                    ChunkIndex = chunkIndex++,
+                                    Text = chunkText,
+                                    CharRange = $"{idx}-{idx + len}",
+                                    SourceUrl = doc.Url
+                                };
+                                await db.DocumentChunks.AddAsync(chunk, stoppingToken);
+                                idx += len;
+                            }
+                        }
+                        else
+                        {
+                            // Ріжемо по статтях
+                            for (int i = 0; i < matches.Count; i++)
+                            {
+                                int start = matches[i].Index;
+                                int end = (i + 1 < matches.Count) ? matches[i + 1].Index : text.Length;
+                                int length = end - start;
+
+                                if (length <= 0)
+                                {
+                                    continue;
+                                }
+
+                                var articleText = text.Substring(start, length);
+
+                                // Якщо стаття надто велика, ріжемо всередині ще по 2000 символів
+                                int maxChunkSize = 2000;
+                                int localIdx = 0;
+                                while (localIdx < articleText.Length)
+                                {
+                                    var len = Math.Min(maxChunkSize, articleText.Length - localIdx);
+                                    var chunkText = articleText.Substring(localIdx, len);
+
+                                    var globalStart = start + localIdx;
+                                    var chunk = new DocumentChunk
+                                    {
+                                        Id = Guid.NewGuid(),
+                                        DocumentId = doc.Id,
+                                        ChunkIndex = chunkIndex++,
+                                        Text = chunkText,
+                                        CharRange = $"{globalStart}-{globalStart + len}",
+                                        SourceUrl = doc.Url
+                                    };
+                                    await db.DocumentChunks.AddAsync(chunk, stoppingToken);
+
+                                    localIdx += len;
+                                }
+                            }
+                        }
                     }
 
                     job.Status = JobStatus.Completed;
@@ -112,6 +167,25 @@ namespace LegalAssistant.Workers
                     _logger.LogError(ex, "Error in IngestWorker");
                 }
             }
+        }
+
+        private static string StripHtml(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+                return string.Empty;
+
+            // прибрати <script> і <style>
+            html = Regex.Replace(html, "<(script|style)[^>]*?>.*?</\\1>", string.Empty,
+                RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+            // прибрати всі теги
+            html = Regex.Replace(html, "<.*?>", string.Empty);
+
+            // decode HTML entities (&nbsp; &amp; ...)
+            html = System.Net.WebUtility.HtmlDecode(html);
+
+            // нормалізувати пробіли
+            return Regex.Replace(html, "\\s+", " ").Trim();
         }
 
         private class IngestPayload { public string DocumentId { get; set; } public string Url { get; set; } }
