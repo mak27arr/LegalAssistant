@@ -17,7 +17,7 @@ builder.Services.AddSingleton<LegalAssistant.Embeddings.Messaging.RabbitMqOption
 });
 
 builder.Services.AddSingleton<LegalAssistant.Embeddings.Services.IEmbeddingGenerator, LegalAssistant.Embeddings.Services.DeterministicMockEmbeddingGenerator>();
-builder.Services.AddHostedService<LegalAssistant.Embeddings.Messaging.EmbeddingRpcWorker>();
+builder.Services.AddHostedService<LegalAssistant.Embeddings.Messaging.EmbeddingQueueWorker>();
 
 var app = builder.Build();
 

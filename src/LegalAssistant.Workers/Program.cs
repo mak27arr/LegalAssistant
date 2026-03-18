@@ -6,6 +6,10 @@ using Microsoft.Extensions.Configuration;
 using LegalAssistant.Workers;
 using System;
 using LegalAssistant.Workers.Embeddings;
+using LegalAssistant.Domain.Chunking;
+using System.Text.RegularExpressions;
+using LegalAssistant.Domain.Documents;
+using LegalAssistant.Infrastructure.Documents;
 
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
@@ -22,9 +26,26 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHttpClient();
 
+        services.AddSingleton<IHtmlToTextConverter, RegexHtmlToTextConverter>();
+        services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>();
+
+        services.AddSingleton<IChunkingPolicy>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var chunkSize = config.GetValue<int?>("Chunking:ChunkSize") ?? 2000;
+            var maxChunkSize = config.GetValue<int?>("Chunking:MaxChunkSize") ?? chunkSize;
+            var pattern = config.GetValue<string>("Chunking:ArticleRegex") ?? @"Стаття\s+\d+[\d¹²³]*[\w\-]*";
+
+            var articleRegex = new Regex(pattern, RegexOptions.Multiline | RegexOptions.CultureInvariant);
+            var regex = new RegexArticleChunkingStrategy(articleRegex, maxChunkSize: maxChunkSize);
+            var fallback = new FixedSizeChunkingStrategy(chunkSize: chunkSize);
+            return new RegexOrFixedChunkingPolicy(regex, fallback);
+        });
+
         // Embedding service via RabbitMQ
         services.AddSingleton<IEmbeddingService, RabbitMqEmbeddingService>();
         services.AddHostedService<IngestWorker>();
+        services.AddHostedService<EmbeddingCompletedConsumer>();
         services.AddHostedService<RabbitMqConsumerService>();
     })
     .Build();

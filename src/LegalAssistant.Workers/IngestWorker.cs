@@ -8,23 +8,29 @@ using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using LegalAssistant.Domain.Models;
-using System.Net.Http;
 using System.Text.RegularExpressions;
 using LegalAssistant.Workers.Embeddings;
+using Pgvector;
+using LegalAssistant.Domain.Chunking;
+using LegalAssistant.Domain.Documents;
 
 namespace LegalAssistant.Workers
 {
-    public class IngestWorker : BackgroundService
+    public partial class IngestWorker : BackgroundService
     {
         private readonly IServiceProvider _sp;
         private readonly ILogger<IngestWorker> _logger;
         private readonly IEmbeddingService _embeddingService;
+        private readonly IChunkingPolicy _chunkingPolicy;
+        private readonly IDocumentContentFetcher _contentFetcher;
 
-        public IngestWorker(IServiceProvider sp, ILogger<IngestWorker> logger, IEmbeddingService embeddingService)
+        public IngestWorker(IServiceProvider sp, ILogger<IngestWorker> logger, IEmbeddingService embeddingService, IChunkingPolicy chunkingPolicy, IDocumentContentFetcher contentFetcher)
         {
             _sp = sp;
             _logger = logger;
             _embeddingService = embeddingService;
+            _chunkingPolicy = chunkingPolicy;
+            _contentFetcher = contentFetcher;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -37,7 +43,6 @@ namespace LegalAssistant.Workers
                 {
                     using var scope = _sp.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<LegalAssistantDbContext>();
-                    var http = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>().CreateClient();
 
                     var job = await db.Jobs.FirstOrDefaultAsync(j => j.Status == JobStatus.Queued, stoppingToken);
                     if (job == null)
@@ -65,18 +70,16 @@ namespace LegalAssistant.Workers
                         try
                         {
                             _logger.LogInformation("Fetching {Url}", payload.Url);
-                            var resp = await http.GetAsync(payload.Url, stoppingToken);
-                            if (resp.IsSuccessStatusCode)
+                            var plain = await _contentFetcher.FetchPlainTextAsync(payload.Url, stoppingToken);
+                            if (!string.IsNullOrWhiteSpace(plain))
                             {
-                                var html = await resp.Content.ReadAsStringAsync(stoppingToken);
-                                var plain = StripHtml(html);
                                 doc.Content = plain;
                                 db.Documents.Update(doc);
                                 await db.SaveChangesAsync(stoppingToken);
                             }
                             else
                             {
-                                _logger.LogWarning("Failed to fetch {Url} status={Status}", payload.Url, resp.StatusCode);
+                                _logger.LogWarning("Failed to fetch/parse content for {Url}", payload.Url);
                             }
                         }
                         catch (Exception ex)
@@ -85,81 +88,28 @@ namespace LegalAssistant.Workers
                         }
                     }
 
-                    // chunking by articles ("Стаття {номер}") with fallback to fixed-size chunks for long articles
                     var text = string.IsNullOrWhiteSpace(doc.Content) ? string.Empty : doc.Content;
                     int chunkIndex = 0;
 
                     if (!string.IsNullOrWhiteSpace(text))
                     {
-                        // Regex для заголовків статей, наприклад: "Стаття 1.", "Стаття 1-1", "Стаття 15¹" тощо
-                        var articleRegex = new Regex(@"Стаття\s+\d+[\d¹²³]*[\w\-]*", RegexOptions.Multiline | RegexOptions.CultureInvariant);
-                        var matches = articleRegex.Matches(text);
-
-                        if (matches.Count == 0)
+                        foreach (var range in _chunkingPolicy.GetRanges(text))
                         {
-                            // Якщо статті не знайдені, fallback до старої поведінки по 2000 символів
-                            int fallbackSize = 2000;
-                            int idx = 0;
-                            while (idx < text.Length)
+                            var chunkText = text.Substring(range.Start, range.Length);
+                            var chunk = new DocumentChunk
                             {
-                                var len = Math.Min(fallbackSize, text.Length - idx);
-                                var chunkText = text.Substring(idx, len);
-                                var embedding = await _embeddingService.GetEmbeddingAsync(chunkText, stoppingToken);
-                                var chunk = new DocumentChunk
-                                {
-                                    Id = Guid.NewGuid(),
-                                    DocumentId = doc.Id,
-                                    ChunkIndex = chunkIndex++,
-                                    Text = chunkText,
-                                    CharRange = $"{idx}-{idx + len}",
-                                    SourceUrl = doc.Url,
-                                    Embedding = new Pgvector.Vector(embedding)
-                                };
-                                await db.DocumentChunks.AddAsync(chunk, stoppingToken);
-                                idx += len;
-                            }
-                        }
-                        else
-                        {
-                            // Ріжемо по статтях
-                            for (int i = 0; i < matches.Count; i++)
-                            {
-                                int start = matches[i].Index;
-                                int end = (i + 1 < matches.Count) ? matches[i + 1].Index : text.Length;
-                                int length = end - start;
+                                Id = Guid.NewGuid(),
+                                DocumentId = doc.Id,
+                                ChunkIndex = chunkIndex++,
+                                Text = chunkText,
+                                CharRange = $"{range.Start}-{range.EndExclusive}",
+                                SourceUrl = doc.Url,
+                                Embedding = null
+                            };
 
-                                if (length <= 0)
-                                {
-                                    continue;
-                                }
-
-                                var articleText = text.Substring(start, length);
-
-                                // Якщо стаття надто велика, ріжемо всередині ще по 2000 символів
-                                int maxChunkSize = 2000;
-                                int localIdx = 0;
-                                while (localIdx < articleText.Length)
-                                {
-                                    var len = Math.Min(maxChunkSize, articleText.Length - localIdx);
-                                    var chunkText = articleText.Substring(localIdx, len);
-
-                                    var globalStart = start + localIdx;
-                                    var embedding = await _embeddingService.GetEmbeddingAsync(chunkText, stoppingToken);
-                                    var chunk = new DocumentChunk
-                                    {
-                                        Id = Guid.NewGuid(),
-                                        DocumentId = doc.Id,
-                                        ChunkIndex = chunkIndex++,
-                                        Text = chunkText,
-                                        CharRange = $"{globalStart}-{globalStart + len}",
-                                        SourceUrl = doc.Url,
-                                        Embedding = new Pgvector.Vector(embedding)
-                                    };
-                                    await db.DocumentChunks.AddAsync(chunk, stoppingToken);
-
-                                    localIdx += len;
-                                }
-                            }
+                            await db.DocumentChunks.AddAsync(chunk, stoppingToken);
+                            await db.SaveChangesAsync(stoppingToken);
+                            await _embeddingService.EnqueueEmbeddingAsync(chunk.Id, chunkText, stoppingToken);
                         }
                     }
 
@@ -175,26 +125,5 @@ namespace LegalAssistant.Workers
                 }
             }
         }
-
-        private static string StripHtml(string html)
-        {
-            if (string.IsNullOrWhiteSpace(html))
-                return string.Empty;
-
-            // прибрати <script> і <style>
-            html = Regex.Replace(html, "<(script|style)[^>]*?>.*?</\\1>", string.Empty,
-                RegexOptions.Singleline | RegexOptions.IgnoreCase);
-
-            // прибрати всі теги
-            html = Regex.Replace(html, "<.*?>", string.Empty);
-
-            // decode HTML entities (&nbsp; &amp; ...)
-            html = System.Net.WebUtility.HtmlDecode(html);
-
-            // нормалізувати пробіли
-            return Regex.Replace(html, "\\s+", " ").Trim();
-        }
-
-        private class IngestPayload { public string DocumentId { get; set; } public string Url { get; set; } }
     }
 }
