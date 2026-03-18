@@ -13,8 +13,6 @@ using System.Text.Json;
 
 namespace LegalAssistant.Workers
 {
-
-#if RABBITMQ
     // Simple RabbitMQ consumer service for ingest jobs
     public class RabbitMqConsumerService : BackgroundService
     {
@@ -107,23 +105,4 @@ namespace LegalAssistant.Workers
             base.Dispose();
         }
     }
-#else
-    // RabbitMQ consumer is not compiled when RABBITMQ symbol is not defined.
-    // This avoids build errors when the RabbitMQ client package is not available.
-    public class RabbitMqConsumerService : BackgroundService
-    {
-        private readonly ILogger<RabbitMqConsumerService> _logger;
-
-        public RabbitMqConsumerService(ILogger<RabbitMqConsumerService> logger)
-        {
-            _logger = logger;
-        }
-
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("RabbitMQ consumer disabled (RABBITMQ symbol not defined)");
-            return Task.CompletedTask;
-        }
-    }
-#endif
 }
