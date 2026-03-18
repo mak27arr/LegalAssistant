@@ -83,8 +83,7 @@ public sealed class EmbeddingQueueWorker : BackgroundService
                 return;
             }
 
-            // generation might become async later (e.g., Ollama HTTP). Keep method async-friendly.
-            var vector = await Task.Run(() => _generator.Generate(request.Text), stoppingToken);
+            var vector = await _generator.GenerateAsync(request.Text, stoppingToken);
             var completed = new EmbeddingCompletedMessage(request.ChunkId, vector);
             var completedBody = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(completed));
 

@@ -45,8 +45,36 @@ services:
       dockerfile: src/LegalAssistant.Embeddings/Dockerfile
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - Embeddings__Mode=ollama
+      - Ollama__BaseUrl=http://ollama:11434
+      - Ollama__Model=nomic-embed-text
     ports:
       - "8080:80"
+    depends_on:
+      - rabbitmq
+      - ollama
+      - ollama-init
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    restart: "no"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=nomic-embed-text
+    volumes:
+      - ollama:/root/.ollama
+      - ./ollama-init.sh:/ollama-init.sh:ro
+    entrypoint: ["/bin/sh", "/ollama-init.sh"]
 
   api:
     build:
@@ -82,3 +110,4 @@ services:
 volumes:
   pgdata:
   minio_data:
+  ollama:

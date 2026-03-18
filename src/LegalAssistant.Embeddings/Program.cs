@@ -16,7 +16,25 @@ builder.Services.AddSingleton<LegalAssistant.Embeddings.Messaging.RabbitMqOption
     };
 });
 
-builder.Services.AddSingleton<LegalAssistant.Embeddings.Services.IEmbeddingGenerator, LegalAssistant.Embeddings.Services.DeterministicMockEmbeddingGenerator>();
+builder.Services.AddHttpClient("ollama", (sp, client) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["Ollama:BaseUrl"] ?? Environment.GetEnvironmentVariable("OLLAMA_BASEURL") ?? "http://ollama:11434";
+    client.BaseAddress = new Uri(baseUrl);
+});
+
+builder.Services.AddSingleton<LegalAssistant.Embeddings.Services.IEmbeddingGenerator>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var mode = (config["Embeddings:Mode"] ?? "ollama").Trim().ToLowerInvariant();
+    if (mode == "mock")
+        return new LegalAssistant.Embeddings.Services.DeterministicMockEmbeddingGenerator();
+
+    var model = config["Ollama:Model"] ?? Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "nomic-embed-text";
+    var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient("ollama");
+    return new LegalAssistant.Embeddings.Services.OllamaEmbeddingGenerator(http, model);
+});
+
 builder.Services.AddHostedService<LegalAssistant.Embeddings.Messaging.EmbeddingQueueWorker>();
 
 var app = builder.Build();

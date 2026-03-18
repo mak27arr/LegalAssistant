@@ -21,4 +21,9 @@ public sealed class DeterministicMockEmbeddingGenerator : IEmbeddingGenerator
 
         return vector;
     }
+
+    public async Task<float[]> GenerateAsync(string text)
+    {
+        return await Task.FromResult(Generate(text));
+    }
 }
