@@ -46,4 +46,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.MapPost("/embed", async (EmbedRequest req, LegalAssistant.Embeddings.Services.IEmbeddingGenerator generator, CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(req.Text))
+        return Results.BadRequest("Text is required");
+
+    var vector = await generator.GenerateAsync(req.Text, ct);
+    return Results.Ok(vector);
+});
+
 app.Run();
+
+public sealed record EmbedRequest(string Text);

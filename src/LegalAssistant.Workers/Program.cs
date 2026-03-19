@@ -10,6 +10,13 @@ using LegalAssistant.Domain.Chunking;
 using System.Text.RegularExpressions;
 using LegalAssistant.Domain.Documents;
 using LegalAssistant.Infrastructure.Documents;
+using LegalAssistant.Application.Persistence;
+using LegalAssistant.Application.Documents;
+using LegalAssistant.Application.Jobs;
+using LegalAssistant.Application.Chunks;
+using LegalAssistant.Infrastructure.Db;
+using LegalAssistant.Infrastructure.Jobs;
+using LegalAssistant.Infrastructure.Chunks;
 
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
@@ -44,6 +51,13 @@ var host = Host.CreateDefaultBuilder(args)
 
         // Embedding service via RabbitMQ
         services.AddSingleton<IEmbeddingService, RabbitMqEmbeddingService>();
+
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<IDocumentRepository, EfDocumentRepository>();
+        services.AddScoped<IJobRepository, EfJobRepository>();
+        services.AddScoped<IJobQueue, EfJobQueue>();
+        services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
+
         services.AddHostedService<IngestWorker>();
         services.AddHostedService<EmbeddingCompletedConsumer>();
         services.AddHostedService<RabbitMqConsumerService>();

@@ -4,8 +4,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using LegalAssistant.Infrastructure.Db;
-using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using LegalAssistant.Domain.Models;
 using System.Text.RegularExpressions;
@@ -13,6 +11,10 @@ using LegalAssistant.Workers.Embeddings;
 using Pgvector;
 using LegalAssistant.Domain.Chunking;
 using LegalAssistant.Domain.Documents;
+using LegalAssistant.Application.Documents;
+using LegalAssistant.Application.Jobs;
+using LegalAssistant.Application.Chunks;
+using LegalAssistant.Application.Persistence;
 
 namespace LegalAssistant.Workers
 {
@@ -42,9 +44,13 @@ namespace LegalAssistant.Workers
                 try
                 {
                     using var scope = _sp.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<LegalAssistantDbContext>();
+                    var documents = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
+                    var chunks = scope.ServiceProvider.GetRequiredService<IDocumentChunkRepository>();
+                    var jobs = scope.ServiceProvider.GetRequiredService<IJobRepository>();
+                    var jobQueue = scope.ServiceProvider.GetRequiredService<IJobQueue>();
+                    var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-                    var job = await db.Jobs.FirstOrDefaultAsync(j => j.Status == JobStatus.Queued, stoppingToken);
+                    var job = await jobQueue.DequeueQueuedAsync(stoppingToken);
                     if (job == null)
                     {
                         await Task.Delay(1000, stoppingToken);
@@ -52,16 +58,16 @@ namespace LegalAssistant.Workers
                     }
 
                     job.Status = JobStatus.InProgress;
-                    await db.SaveChangesAsync(stoppingToken);
+                    await uow.SaveChangesAsync(stoppingToken);
 
                     var payload = JsonSerializer.Deserialize<IngestPayload>(job.Payload);
                     // Simple fetch: if Content already present, use it; otherwise attempt HTTP fetch
-                    var doc = await db.Documents.FirstOrDefaultAsync(d => d.Id == Guid.Parse(payload.DocumentId), stoppingToken);
+                    var doc = await documents.GetByIdAsync(Guid.Parse(payload.DocumentId), stoppingToken);
                     if (doc == null)
                     {
                         job.Status = JobStatus.Failed;
                         job.Result = "document not found";
-                        await db.SaveChangesAsync(stoppingToken);
+                        await uow.SaveChangesAsync(stoppingToken);
                         continue;
                     }
 
@@ -74,8 +80,8 @@ namespace LegalAssistant.Workers
                             if (!string.IsNullOrWhiteSpace(plain))
                             {
                                 doc.Content = plain;
-                                db.Documents.Update(doc);
-                                await db.SaveChangesAsync(stoppingToken);
+                                documents.Update(doc);
+                                await uow.SaveChangesAsync(stoppingToken);
                             }
                             else
                             {
@@ -107,15 +113,15 @@ namespace LegalAssistant.Workers
                                 Embedding = null
                             };
 
-                            await db.DocumentChunks.AddAsync(chunk, stoppingToken);
-                            await db.SaveChangesAsync(stoppingToken);
+                            await chunks.AddAsync(chunk, stoppingToken);
+                            await uow.SaveChangesAsync(stoppingToken);
                             await _embeddingService.EnqueueEmbeddingAsync(chunk.Id, chunkText, stoppingToken);
                         }
                     }
 
                     job.Status = JobStatus.Completed;
                     job.Result = JsonSerializer.Serialize(new { chunks = chunkIndex });
-                    await db.SaveChangesAsync(stoppingToken);
+                    await uow.SaveChangesAsync(stoppingToken);
 
                     _logger.LogInformation("Ingest job {JobId} completed, chunks={Chunks}", job.Id, chunkIndex);
                 }
