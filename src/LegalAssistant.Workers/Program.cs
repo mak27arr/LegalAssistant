@@ -50,11 +50,6 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .Build();
 
-// Ensure database is created
-using (var scope = host.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<LegalAssistantDbContext>();
-    dbContext.Database.EnsureCreated();
-}
+// Database migrations are applied by the API on startup.
 
 await host.RunAsync();

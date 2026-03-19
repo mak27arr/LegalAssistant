@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.2.0" />
     <ProjectReference Include="../LegalAssistant.Domain/LegalAssistant.Domain.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
