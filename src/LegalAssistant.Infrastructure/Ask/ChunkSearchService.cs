@@ -23,23 +23,32 @@ public sealed class ChunkSearchService : IChunkSearchService
 
         // Use pgvector operator directly for ordering: embedding <-> query
         // NOTE: score here is L2 distance (lower is better).
-        var rows = await _db.DocumentChunks
-            .FromSqlInterpolated($@"
-                SELECT id, document_id, chunk_index, text, char_range, source_url, embedding, created_at
+        var rows = await _db.Database
+            .SqlQuery<SearchRow>($@"
+                SELECT id AS Id,
+                       document_id AS DocumentId,
+                       chunk_index AS ChunkIndex,
+                       text AS Text,
+                       source_url AS SourceUrl,
+                       (embedding <-> {qv})::double precision AS Score
                 FROM document_chunks
                 WHERE embedding IS NOT NULL
                 ORDER BY embedding <-> {qv}
                 LIMIT {topK}")
-            .AsNoTracking()
-            .Select(c => new AskChunkResult(
-                c.Id,
-                c.DocumentId,
-                c.ChunkIndex,
-                c.Text,
-                c.SourceUrl,
-                0))
             .ToListAsync(cancellationToken);
 
-        return rows;
+        return rows
+            .Select(r => new AskChunkResult(r.Id, r.DocumentId, r.ChunkIndex, r.Text, r.SourceUrl, r.Score))
+            .ToList();
+    }
+
+    private sealed class SearchRow
+    {
+        public Guid Id { get; set; }
+        public Guid DocumentId { get; set; }
+        public int ChunkIndex { get; set; }
+        public string Text { get; set; } = string.Empty;
+        public string? SourceUrl { get; set; }
+        public double Score { get; set; }
     }
 }

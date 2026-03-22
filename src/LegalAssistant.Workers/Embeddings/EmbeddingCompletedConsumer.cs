@@ -3,7 +3,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using LegalAssistant.Application.Common;
 using LegalAssistant.Infrastructure.Db;
+using LegalAssistant.Infrastructure.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -32,6 +34,8 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _logger.LogInformation("EmbeddingCompletedConsumer starting");
+
         var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "rabbitmq";
         var port = int.TryParse(Environment.GetEnvironmentVariable("RABBITMQ_PORT"), out var p) ? p : 5672;
         var user = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
@@ -48,7 +52,7 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
                 _channel?.Dispose();
                 _channel = _connection.CreateModel();
 
-                _channel.QueueDeclare(queue: CompletedQueueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
+                EmbeddingsRabbitMqTopology.EnsureCompleted(_connection);
                 _channel.BasicQos(0, 5, false);
 
                 var consumer = new EventingBasicConsumer(_channel);
@@ -57,6 +61,7 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
                 _channel.BasicConsume(queue: CompletedQueueName, autoAck: false, consumerTag: "", noLocal: false, exclusive: false, arguments: null, consumer: consumer);
 
                 _logger.LogInformation("EmbeddingCompletedConsumer listening on {Queue}", CompletedQueueName);
+                _logger.LogInformation("EmbeddingCompletedConsumer connected to RabbitMQ {Host}:{Port}", host, port);
 
                 var tcs = new TaskCompletionSource();
                 using var reg = stoppingToken.Register(() => tcs.TrySetResult());
@@ -81,17 +86,46 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
                 var msg = JsonSerializer.Deserialize<EmbeddingCompletedMessage>(json);
                 if (msg == null || msg.ChunkId == Guid.Empty || msg.Vector == null)
                 {
+                    _logger.LogWarning("Invalid embeddings:completed message received. correlationId={CorrelationId}", ea.BasicProperties?.CorrelationId);
                     _channel.BasicAck(ea.DeliveryTag, multiple: false);
                     return;
                 }
 
+                var correlationId = RabbitMqCorrelation.TryGetCorrelationId(ea.BasicProperties?.Headers)
+                                    ?? ea.BasicProperties?.CorrelationId
+                                    ?? msg.ChunkId.ToString("N");
+
                 using var scope = _sp.CreateScope();
+                var correlation = scope.ServiceProvider.GetRequiredService<ICorrelationContext>();
+                correlation.CorrelationId = correlationId;
+
+                using var __ = _logger.BeginScope(new System.Collections.Generic.Dictionary<string, object>
+                {
+                    ["correlationId"] = correlationId,
+                    ["chunkId"] = msg.ChunkId
+                });
+
+                _logger.LogInformation("Received embeddings:completed. VectorDimensions={Dimensions}", msg.Vector.Length);
+
+                if (msg.Vector.Length == 0)
+                {
+                    _logger.LogWarning("Received empty embedding vector; acking message without persisting");
+                    _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                    return;
+                }
+
                 var db = scope.ServiceProvider.GetRequiredService<LegalAssistantDbContext>();
                 var chunk = await db.DocumentChunks.FirstOrDefaultAsync(c => c.Id == msg.ChunkId, stoppingToken);
                 if (chunk != null)
                 {
                     chunk.Embedding = new Vector(msg.Vector);
                     await db.SaveChangesAsync(stoppingToken);
+
+                    _logger.LogInformation("Embedding persisted for chunk");
+                }
+                else
+                {
+                    _logger.LogWarning("Chunk not found for embeddings:completed message");
                 }
 
                 _channel.BasicAck(ea.DeliveryTag, multiple: false);
@@ -99,7 +133,7 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing embeddings:completed message");
-                _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: true);
+                _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
             }
         };
     }

@@ -17,10 +17,19 @@ using LegalAssistant.Application.Chunks;
 using LegalAssistant.Infrastructure.Db;
 using LegalAssistant.Infrastructure.Jobs;
 using LegalAssistant.Infrastructure.Chunks;
+using LegalAssistant.Application.Common;
+using LegalAssistant.Infrastructure.Common;
+using Microsoft.Extensions.Logging;
 
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {
+        services.AddLogging(logging =>
+        {
+            logging.AddFilter((category, level) =>
+                category == "Microsoft.EntityFrameworkCore.Database.Command" ? level >= LogLevel.Warning : true);
+        });
+
         var conn = context.Configuration.GetConnectionString("DefaultConnection");
         if (string.IsNullOrEmpty(conn))
         {
@@ -57,6 +66,8 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddScoped<IJobRepository, EfJobRepository>();
         services.AddScoped<IJobQueue, EfJobQueue>();
         services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
+
+        services.AddScoped<ICorrelationContext, CorrelationContext>();
 
         services.AddHostedService<IngestWorker>();
         services.AddHostedService<EmbeddingCompletedConsumer>();

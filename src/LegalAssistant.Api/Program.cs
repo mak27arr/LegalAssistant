@@ -9,6 +9,7 @@ using System;
 using LegalAssistant.Api.Services;
 using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Embeddings;
+using LegalAssistant.Application.Common;
 using LegalAssistant.Application.Persistence;
 using LegalAssistant.Application.Documents;
 using LegalAssistant.Application.Jobs;
@@ -19,6 +20,7 @@ using LegalAssistant.Infrastructure.Db;
 using LegalAssistant.Infrastructure.Documents;
 using LegalAssistant.Infrastructure.Jobs;
 using LegalAssistant.Infrastructure.Chunks;
+using LegalAssistant.Infrastructure.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -63,10 +65,35 @@ builder.Services.AddScoped<IJobRepository, EfJobRepository>();
 builder.Services.AddScoped<IJobQueue, EfJobQueue>();
 builder.Services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
 
+builder.Services.AddScoped<ICorrelationContext, CorrelationContext>();
+
 // Application services
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 
+builder.Services.AddHttpContextAccessor();
+
 var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Headers.TryGetValue("X-Correlation-Id", out var correlationId) || string.IsNullOrWhiteSpace(correlationId))
+    {
+        correlationId = Guid.NewGuid().ToString("N");
+        context.Request.Headers["X-Correlation-Id"] = correlationId;
+    }
+
+    context.Response.Headers["X-Correlation-Id"] = correlationId.ToString();
+
+    var corr = context.RequestServices.GetRequiredService<ICorrelationContext>();
+    corr.CorrelationId = correlationId.ToString();
+
+    var loggerFactory = context.RequestServices.GetRequiredService<ILoggerFactory>();
+    var logger = loggerFactory.CreateLogger("Correlation");
+    using (logger.BeginScope(new System.Collections.Generic.Dictionary<string, object> { ["correlationId"] = corr.CorrelationId }))
+    {
+        await next();
+    }
+});
 
 // Ensure database is created and migrated
 using (var scope = app.Services.CreateScope())

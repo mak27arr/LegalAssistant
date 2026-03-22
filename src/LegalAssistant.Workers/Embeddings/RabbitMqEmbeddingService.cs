@@ -3,6 +3,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using LegalAssistant.Application.Common;
+using LegalAssistant.Infrastructure.Messaging;
+using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 
 namespace LegalAssistant.Workers.Embeddings
@@ -14,11 +17,15 @@ namespace LegalAssistant.Workers.Embeddings
         private IModel? _channel;
         private readonly ConnectionFactory _factory;
         private readonly object _lock = new();
+        private readonly ICorrelationContext _correlation;
+        private readonly ILogger<RabbitMqEmbeddingService> _logger;
 
         private const string RequestQueueName = "embeddings:requests";
 
-        public RabbitMqEmbeddingService()
+        public RabbitMqEmbeddingService(ICorrelationContext correlation, ILogger<RabbitMqEmbeddingService> logger)
         {
+            _correlation = correlation;
+            _logger = logger;
             var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "rabbitmq";
             var port = int.TryParse(Environment.GetEnvironmentVariable("RABBITMQ_PORT"), out var p) ? p : 5672;
             var user = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
@@ -43,7 +50,7 @@ namespace LegalAssistant.Workers.Embeddings
                         _connection?.Dispose();
                         _connection = _factory.CreateConnection();
                         _channel = _connection.CreateModel();
-                        _channel.QueueDeclare(queue: RequestQueueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
+                        EmbeddingsRabbitMqTopology.EnsureRequests(_connection);
                         return;
                     }
                     catch
@@ -68,6 +75,17 @@ namespace LegalAssistant.Workers.Embeddings
             var props = _channel!.CreateBasicProperties();
             props.Persistent = true;
             props.CorrelationId = chunkId.ToString();
+
+            var correlationId = string.IsNullOrWhiteSpace(_correlation.CorrelationId)
+                ? chunkId.ToString("N")
+                : _correlation.CorrelationId;
+            _correlation.CorrelationId = correlationId;
+
+            props.Headers ??= new System.Collections.Generic.Dictionary<string, object>();
+            RabbitMqCorrelation.SetCorrelationId(props.Headers, correlationId);
+            props.CorrelationId = correlationId;
+
+            _logger.LogInformation("Publishing embeddings:requests. chunkId={ChunkId} correlationId={CorrelationId}", chunkId, correlationId);
 
             _channel.BasicPublish(exchange: "", routingKey: RequestQueueName, mandatory: false, basicProperties: props, body: body);
 

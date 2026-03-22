@@ -15,6 +15,7 @@ using LegalAssistant.Application.Documents;
 using LegalAssistant.Application.Jobs;
 using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Persistence;
+using LegalAssistant.Application.Common;
 
 namespace LegalAssistant.Workers
 {
@@ -49,6 +50,7 @@ namespace LegalAssistant.Workers
                     var jobs = scope.ServiceProvider.GetRequiredService<IJobRepository>();
                     var jobQueue = scope.ServiceProvider.GetRequiredService<IJobQueue>();
                     var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+                    var correlation = scope.ServiceProvider.GetRequiredService<ICorrelationContext>();
 
                     var job = await jobQueue.DequeueQueuedAsync(stoppingToken);
                     if (job == null)
@@ -56,6 +58,15 @@ namespace LegalAssistant.Workers
                         await Task.Delay(1000, stoppingToken);
                         continue;
                     }
+
+                    correlation.CorrelationId = job.Id.ToString("N");
+                    using var _ = _logger.BeginScope(new System.Collections.Generic.Dictionary<string, object>
+                    {
+                        ["correlationId"] = correlation.CorrelationId,
+                        ["jobId"] = job.Id
+                    });
+
+                    _logger.LogInformation("Picked ingest job {JobId}", job.Id);
 
                     job.Status = JobStatus.InProgress;
                     await uow.SaveChangesAsync(stoppingToken);
@@ -99,6 +110,7 @@ namespace LegalAssistant.Workers
 
                     if (!string.IsNullOrWhiteSpace(text))
                     {
+                        _logger.LogInformation("Chunking document {DocumentId}. TextLength={TextLength}", doc.Id, text.Length);
                         foreach (var range in _chunkingPolicy.GetRanges(text))
                         {
                             var chunkText = text.Substring(range.Start, range.Length);
@@ -116,6 +128,11 @@ namespace LegalAssistant.Workers
                             await chunks.AddAsync(chunk, stoppingToken);
                             await uow.SaveChangesAsync(stoppingToken);
                             await _embeddingService.EnqueueEmbeddingAsync(chunk.Id, chunkText, stoppingToken);
+
+                            if (chunkIndex % 25 == 0)
+                            {
+                                _logger.LogInformation("Enqueued embeddings for {Chunks} chunks so far", chunkIndex);
+                            }
                         }
                     }
 

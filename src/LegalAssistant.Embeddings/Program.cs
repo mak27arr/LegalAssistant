@@ -32,7 +32,8 @@ builder.Services.AddSingleton<LegalAssistant.Embeddings.Services.IEmbeddingGener
 
     var model = config["Ollama:Model"] ?? Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "nomic-embed-text";
     var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient("ollama");
-    return new LegalAssistant.Embeddings.Services.OllamaEmbeddingGenerator(http, model);
+    var logger = sp.GetRequiredService<ILogger<LegalAssistant.Embeddings.Services.OllamaEmbeddingGenerator>>();
+    return new LegalAssistant.Embeddings.Services.OllamaEmbeddingGenerator(http, model, logger);
 });
 
 builder.Services.AddHostedService<LegalAssistant.Embeddings.Messaging.EmbeddingQueueWorker>();
@@ -46,12 +47,22 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.MapPost("/embed", async (EmbedRequest req, LegalAssistant.Embeddings.Services.IEmbeddingGenerator generator, CancellationToken ct) =>
+app.MapPost("/embed", async (HttpContext http, EmbedRequest req, LegalAssistant.Embeddings.Services.IEmbeddingGenerator generator, ILoggerFactory loggerFactory, CancellationToken ct) =>
 {
+    var correlationId = http.Request.Headers["X-Correlation-Id"].ToString();
+    if (string.IsNullOrWhiteSpace(correlationId))
+        correlationId = Guid.NewGuid().ToString("N");
+
+    http.Response.Headers["X-Correlation-Id"] = correlationId;
+    var logger = loggerFactory.CreateLogger("Embed");
+    using var _ = logger.BeginScope(new System.Collections.Generic.Dictionary<string, object> { ["correlationId"] = correlationId });
+
     if (string.IsNullOrWhiteSpace(req.Text))
         return Results.BadRequest("Text is required");
 
+    logger.LogInformation("Embedding request received");
     var vector = await generator.GenerateAsync(req.Text, ct);
+    logger.LogInformation("Embedding response generated. Dimensions={Dimensions}", vector.Length);
     return Results.Ok(vector);
 });
 
