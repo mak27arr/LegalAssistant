@@ -1,4 +1,6 @@
-using LegalAssistant.Application.Ask;
+using LegalAssistant.Application.Rag;
+using LegalAssistant.Application.Rag.Models;
+using LegalAssistant.Api.Dtos.Ask;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LegalAssistant.Api.Controllers;
@@ -7,27 +9,32 @@ namespace LegalAssistant.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class AskController : ControllerBase
 {
-    private readonly IAskService _ask;
+    private readonly IRagAnswerService _rag;
 
-    public AskController(IAskService ask)
+    public AskController(IRagAnswerService rag)
     {
-        _ask = ask;
+        _rag = rag;
     }
 
     [HttpPost]
     public async Task<ActionResult<AskResponse>> Ask([FromBody] AskRequest req, CancellationToken cancellationToken)
     {
-        var result = await _ask.AskAsync(new AskQuery(req.Question, req.TopK ?? 5), cancellationToken);
+        var result = await _rag.AnswerAsync(new RagAnswerQuery(req.Question, req.TopK ?? 5), cancellationToken);
 
         return Ok(new AskResponse(
             result.Question,
             result.TopK,
-            result.Chunks.Select(c => new AskChunkDto(c.ChunkId, c.DocumentId, c.ChunkIndex, c.Text, c.SourceUrl, c.Score)).ToList()));
+            result.Answer,
+            result.Sources.Select(c => new AskChunkDto(c.ChunkId, c.DocumentId, c.ChunkIndex, c.Text, c.SourceUrl, c.Score)).ToList(),
+            result.Prompt));
+    }
+
+    [HttpPost("prompt")]
+    public async Task<ActionResult<AskPromptResponse>> Prompt([FromBody] AskRequest req, CancellationToken cancellationToken)
+    {
+        var result = await _rag.BuildPromptAsync(new RagAnswerQuery(req.Question, req.TopK ?? 5), cancellationToken);
+        return Ok(new AskPromptResponse(result.Question, result.TopK, result.Prompt, result.Sources
+            .Select(c => new AskChunkDto(c.ChunkId, c.DocumentId, c.ChunkIndex, c.Text, c.SourceUrl, c.Score))
+            .ToList()));
     }
 }
-
-public sealed record AskRequest(string Question, int? TopK);
-
-public sealed record AskChunkDto(Guid ChunkId, Guid DocumentId, int ChunkIndex, string Text, string? SourceUrl, double Score);
-
-public sealed record AskResponse(string Question, int TopK, IReadOnlyList<AskChunkDto> Chunks);

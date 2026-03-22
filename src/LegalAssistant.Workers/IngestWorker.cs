@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using LegalAssistant.Domain.Models;
 using System.Text.RegularExpressions;
-using LegalAssistant.Workers.Embeddings;
 using Pgvector;
 using LegalAssistant.Domain.Chunking;
 using LegalAssistant.Domain.Documents;
@@ -16,6 +15,7 @@ using LegalAssistant.Application.Jobs;
 using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Persistence;
 using LegalAssistant.Application.Common;
+using LegalAssistant.Application.Embeddings;
 
 namespace LegalAssistant.Workers
 {
@@ -23,11 +23,11 @@ namespace LegalAssistant.Workers
     {
         private readonly IServiceProvider _sp;
         private readonly ILogger<IngestWorker> _logger;
-        private readonly IEmbeddingService _embeddingService;
+        private readonly IEmbeddingEnqueueService _embeddingService;
         private readonly IChunkingPolicy _chunkingPolicy;
         private readonly IDocumentContentFetcher _contentFetcher;
 
-        public IngestWorker(IServiceProvider sp, ILogger<IngestWorker> logger, IEmbeddingService embeddingService, IChunkingPolicy chunkingPolicy, IDocumentContentFetcher contentFetcher)
+        public IngestWorker(IServiceProvider sp, ILogger<IngestWorker> logger, IEmbeddingEnqueueService embeddingService, IChunkingPolicy chunkingPolicy, IDocumentContentFetcher contentFetcher)
         {
             _sp = sp;
             _logger = logger;

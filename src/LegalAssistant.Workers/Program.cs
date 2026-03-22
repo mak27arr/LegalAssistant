@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using LegalAssistant.Workers;
 using System;
-using LegalAssistant.Workers.Embeddings;
+using LegalAssistant.Application.Embeddings;
 using LegalAssistant.Domain.Chunking;
 using System.Text.RegularExpressions;
 using LegalAssistant.Domain.Documents;
@@ -59,7 +59,7 @@ var host = Host.CreateDefaultBuilder(args)
         });
 
         // Embedding service via RabbitMQ
-        services.AddSingleton<IEmbeddingService, RabbitMqEmbeddingService>();
+        services.AddSingleton<IEmbeddingEnqueueService, LegalAssistant.Infrastructure.Messaging.RabbitMqEmbeddingRequestPublisher>();
 
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IDocumentRepository, EfDocumentRepository>();
@@ -70,8 +70,8 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddScoped<ICorrelationContext, CorrelationContext>();
 
         services.AddHostedService<IngestWorker>();
-        services.AddHostedService<EmbeddingCompletedConsumer>();
-        services.AddHostedService<RabbitMqConsumerService>();
+        services.AddHostedService<LegalAssistant.Infrastructure.Messaging.RabbitMqEmbeddingCompletedConsumerHostedService>();
+        services.AddHostedService<LegalAssistant.Infrastructure.Messaging.RabbitMqIngestConsumerHostedService>();
     })
     .Build();
 

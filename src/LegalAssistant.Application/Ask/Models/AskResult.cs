@@ -1,4 +1,4 @@
-namespace LegalAssistant.Application.Ask;
+namespace LegalAssistant.Application.Ask.Models;
 
 public sealed record AskChunkResult(
     Guid ChunkId,

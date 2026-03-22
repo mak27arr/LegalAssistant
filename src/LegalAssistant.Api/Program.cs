@@ -7,15 +7,18 @@ using LegalAssistant.Api.Messaging;
 using Microsoft.Extensions.Configuration;
 using System;
 using LegalAssistant.Api.Services;
+using LegalAssistant.Api.Services.Abstractions;
 using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Embeddings;
 using LegalAssistant.Application.Common;
+using LegalAssistant.Application.Rag;
 using LegalAssistant.Application.Persistence;
 using LegalAssistant.Application.Documents;
 using LegalAssistant.Application.Jobs;
 using LegalAssistant.Application.Chunks;
 using LegalAssistant.Infrastructure.Embeddings;
 using LegalAssistant.Infrastructure.Ask;
+using LegalAssistant.Infrastructure.Rag;
 using LegalAssistant.Infrastructure.Db;
 using LegalAssistant.Infrastructure.Documents;
 using LegalAssistant.Infrastructure.Jobs;
@@ -59,6 +62,15 @@ builder.Services.AddHttpClient<IEmbeddingClient, HttpEmbeddingClient>((sp, clien
 builder.Services.AddScoped<IAskService, AskService>();
 builder.Services.AddScoped<IChunkSearchService, ChunkSearchService>();
 
+builder.Services.AddScoped<IRagAnswerService, RagAnswerService>();
+builder.Services.AddScoped<IRagPromptTemplateProvider, DbRagPromptTemplateProvider>();
+builder.Services.AddHttpClient<ILlmClient, OllamaLlmClient>((sp, client) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["Ollama:BaseUrl"] ?? Environment.GetEnvironmentVariable("Ollama__BaseUrl") ?? "http://ollama:11434";
+    client.BaseAddress = new Uri(baseUrl);
+});
+
 builder.Services.AddScoped<IUnitOfWork, EfUnitOfWork>();
 builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
 builder.Services.AddScoped<IJobRepository, EfJobRepository>();
@@ -66,6 +78,7 @@ builder.Services.AddScoped<IJobQueue, EfJobQueue>();
 builder.Services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
 
 builder.Services.AddScoped<ICorrelationContext, CorrelationContext>();
+builder.Services.AddSingleton<IClock, SystemClock>();
 
 // Application services
 builder.Services.AddScoped<IDocumentService, DocumentService>();

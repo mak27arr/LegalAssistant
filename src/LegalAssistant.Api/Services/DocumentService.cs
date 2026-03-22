@@ -1,93 +1,91 @@
-using System;
 using System.Text.Json;
-using System.Threading.Tasks;
+using LegalAssistant.Api.Messaging;
+using LegalAssistant.Api.Services.Abstractions;
+using LegalAssistant.Application.Common;
 using LegalAssistant.Application.Documents;
 using LegalAssistant.Application.Jobs;
 using LegalAssistant.Application.Persistence;
 using LegalAssistant.Domain.Models;
-using LegalAssistant.Api.Messaging;
 
-namespace LegalAssistant.Api.Services
+namespace LegalAssistant.Api.Services;
+
+public sealed class DocumentService : IDocumentService
 {
-    public interface IDocumentService
+    private readonly IDocumentRepository _documents;
+    private readonly IJobRepository _jobs;
+    private readonly IUnitOfWork _uow;
+    private readonly IMessagePublisher _publisher;
+    private readonly IClock _clock;
+
+    public DocumentService(
+        IDocumentRepository documents,
+        IJobRepository jobs,
+        IUnitOfWork uow,
+        IMessagePublisher publisher,
+        IClock clock)
     {
-        Task<Guid> CreateDocumentAsync(string title, string url, string content, object metadata);
-        Task<Document> GetDocumentAsync(Guid id);
-        Task<bool> UpdateDocumentAsync(Guid id, string title, string content, object metadata);
-        Task<bool> DeleteDocumentAsync(Guid id);
+        _documents = documents;
+        _jobs = jobs;
+        _uow = uow;
+        _publisher = publisher;
+        _clock = clock;
     }
 
-    public class DocumentService : IDocumentService
+    public async Task<Guid> CreateDocumentAsync(string title, string url, string content, object metadata, CancellationToken cancellationToken = default)
     {
-        private readonly IDocumentRepository _documents;
-        private readonly IJobRepository _jobs;
-        private readonly IUnitOfWork _uow;
-        private readonly IMessagePublisher _publisher;
-
-        public DocumentService(IDocumentRepository documents, IJobRepository jobs, IUnitOfWork uow, IMessagePublisher publisher)
+        var doc = new Document
         {
-            _documents = documents;
-            _jobs = jobs;
-            _uow = uow;
-            _publisher = publisher;
-        }
+            Id = Guid.NewGuid(),
+            Title = title,
+            Url = url,
+            Content = content,
+            Metadata = JsonSerializer.Serialize(metadata)
+        };
 
-        public async Task<Guid> CreateDocumentAsync(string title, string url, string content, object metadata)
+        await _documents.AddAsync(doc, cancellationToken);
+
+        var job = new JobRecord
         {
-            var doc = new Document
-            {
-                Id = Guid.NewGuid(),
-                Title = title,
-                Url = url,
-                Content = content,
-                Metadata = JsonSerializer.Serialize(metadata)
-            };
+            Id = Guid.NewGuid(),
+            Type = "ingest",
+            Status = JobStatus.Queued,
+            Payload = JsonSerializer.Serialize(new { DocumentId = doc.Id, Url = url })
+        };
 
-            await _documents.AddAsync(doc);
+        await _jobs.AddAsync(job, cancellationToken);
+        await _uow.SaveChangesAsync(cancellationToken);
 
-            var job = new JobRecord
-            {
-                Id = Guid.NewGuid(),
-                Type = "ingest",
-                Status = JobStatus.Queued,
-                Payload = JsonSerializer.Serialize(new { DocumentId = doc.Id, Url = url })
-            };
+        await _publisher.PublishAsync("ingest", job.Id.ToString(), job.Payload, cancellationToken);
 
-            await _jobs.AddAsync(job);
-            await _uow.SaveChangesAsync();
+        return job.Id;
+    }
 
-            await _publisher.PublishAsync("ingest", job.Id.ToString(), job.Payload);
+    public Task<Document?> GetDocumentAsync(Guid id, CancellationToken cancellationToken = default)
+        => _documents.GetByIdWithChunksAsync(id, cancellationToken);
 
-            return job.Id;
-        }
+    public async Task<bool> UpdateDocumentAsync(Guid id, string title, string content, object metadata, CancellationToken cancellationToken = default)
+    {
+        var doc = await _documents.GetByIdAsync(id, cancellationToken);
+        if (doc == null) return false;
 
-        public async Task<Document> GetDocumentAsync(Guid id)
-        {
-            return await _documents.GetByIdWithChunksAsync(id);
-        }
+        doc.Title = title ?? doc.Title;
+        doc.Content = content ?? doc.Content;
+        doc.Metadata = metadata != null ? JsonSerializer.Serialize(metadata) : doc.Metadata;
+        doc.UpdatedAt = _clock.UtcNow;
+        _documents.Update(doc);
+        await _uow.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 
-        public async Task<bool> UpdateDocumentAsync(Guid id, string title, string content, object metadata)
-        {
-            var doc = await _documents.GetByIdAsync(id);
-            if (doc == null) return false;
-            doc.Title = title ?? doc.Title;
-            doc.Content = content ?? doc.Content;
-            doc.Metadata = metadata != null ? JsonSerializer.Serialize(metadata) : doc.Metadata;
-            doc.UpdatedAt = DateTime.UtcNow;
-            _documents.Update(doc);
-            await _uow.SaveChangesAsync();
-            return true;
-        }
+    public async Task<bool> DeleteDocumentAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var doc = await _documents.GetByIdAsync(id, cancellationToken);
+        if (doc == null) return false;
 
-        public async Task<bool> DeleteDocumentAsync(Guid id)
-        {
-            var doc = await _documents.GetByIdAsync(id);
-            if (doc == null) return false;
-            doc.IsDeleted = true;
-            doc.UpdatedAt = DateTime.UtcNow;
-            _documents.Update(doc);
-            await _uow.SaveChangesAsync();
-            return true;
-        }
+        doc.IsDeleted = true;
+        doc.UpdatedAt = _clock.UtcNow;
+        _documents.Update(doc);
+        await _uow.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }

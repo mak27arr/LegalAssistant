@@ -1,4 +1,5 @@
 using LegalAssistant.Application.Ask;
+using LegalAssistant.Application.Ask.Models;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
 using Pgvector;

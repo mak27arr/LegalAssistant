@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
@@ -17,13 +18,13 @@ namespace LegalAssistant.Api.Messaging
             _logger = logger;
         }
 
-        public Task PublishAsync(string topic, string key, string payload)
+        public Task PublishAsync(string topic, string key, string payload, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Publishing message to {Topic} key={Key}", topic, key);
             Queue.Enqueue((topic, key, payload));
             return Task.CompletedTask;
         }
-        }
+    }
 
     public class RabbitMqPublisher : IMessagePublisher
     {
@@ -42,7 +43,7 @@ namespace LegalAssistant.Api.Messaging
             _pass = Environment.GetEnvironmentVariable("RABBITMQ_PASS") ?? "guest";
         }
 
-        public Task PublishAsync(string topic, string key, string payload)
+        public Task PublishAsync(string topic, string key, string payload, CancellationToken cancellationToken = default)
         {
             var factory = new ConnectionFactory() { HostName = _host, Port = _port, UserName = _user, Password = _pass };
             using var conn = factory.CreateConnection();

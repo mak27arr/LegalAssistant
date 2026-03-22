@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using LegalAssistant.Application.Common;
 using LegalAssistant.Infrastructure.Db;
-using LegalAssistant.Infrastructure.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,19 +13,17 @@ using Pgvector;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
-namespace LegalAssistant.Workers.Embeddings;
+namespace LegalAssistant.Infrastructure.Messaging;
 
-public sealed class EmbeddingCompletedConsumer : BackgroundService
+public sealed class RabbitMqEmbeddingCompletedConsumerHostedService : BackgroundService
 {
     private readonly IServiceProvider _sp;
-    private readonly ILogger<EmbeddingCompletedConsumer> _logger;
+    private readonly ILogger<RabbitMqEmbeddingCompletedConsumerHostedService> _logger;
 
     private IConnection? _connection;
     private IModel? _channel;
 
-    private const string CompletedQueueName = "embeddings:completed";
-
-    public EmbeddingCompletedConsumer(IServiceProvider sp, ILogger<EmbeddingCompletedConsumer> logger)
+    public RabbitMqEmbeddingCompletedConsumerHostedService(IServiceProvider sp, ILogger<RabbitMqEmbeddingCompletedConsumerHostedService> logger)
     {
         _sp = sp;
         _logger = logger;
@@ -34,14 +31,14 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("EmbeddingCompletedConsumer starting");
+        _logger.LogInformation("RabbitMqEmbeddingCompletedConsumerHostedService starting");
 
         var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "rabbitmq";
         var port = int.TryParse(Environment.GetEnvironmentVariable("RABBITMQ_PORT"), out var p) ? p : 5672;
         var user = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
         var pass = Environment.GetEnvironmentVariable("RABBITMQ_PASS") ?? "guest";
 
-        var factory = new ConnectionFactory() { HostName = host, Port = port, UserName = user, Password = pass, AutomaticRecoveryEnabled = true };
+        var factory = new ConnectionFactory { HostName = host, Port = port, UserName = user, Password = pass, AutomaticRecoveryEnabled = true };
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -53,15 +50,15 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
                 _channel = _connection.CreateModel();
 
                 EmbeddingsRabbitMqTopology.EnsureCompleted(_connection);
+
                 _channel.BasicQos(0, 5, false);
 
                 var consumer = new EventingBasicConsumer(_channel);
                 consumer.Received += ReceivedHandler(stoppingToken);
 
-                _channel.BasicConsume(queue: CompletedQueueName, autoAck: false, consumerTag: "", noLocal: false, exclusive: false, arguments: null, consumer: consumer);
+                _channel.BasicConsume(queue: EmbeddingsRabbitMqTopology.CompletedQueue, autoAck: false, consumerTag: "", noLocal: false, exclusive: false, arguments: null, consumer: consumer);
 
-                _logger.LogInformation("EmbeddingCompletedConsumer listening on {Queue}", CompletedQueueName);
-                _logger.LogInformation("EmbeddingCompletedConsumer connected to RabbitMQ {Host}:{Port}", host, port);
+                _logger.LogInformation("Embedding completed consumer listening on {Queue}", EmbeddingsRabbitMqTopology.CompletedQueue);
 
                 var tcs = new TaskCompletionSource();
                 using var reg = stoppingToken.Register(() => tcs.TrySetResult());
@@ -70,7 +67,7 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
             }
             catch (Exception ex) when (ex is RabbitMQ.Client.Exceptions.BrokerUnreachableException || ex is System.Net.Sockets.SocketException)
             {
-                _logger.LogWarning("RabbitMQ is not reachable in EmbeddingCompletedConsumer. Retrying in 5 seconds...");
+                _logger.LogWarning("RabbitMQ is not reachable in RabbitMqEmbeddingCompletedConsumerHostedService. Retrying in 5 seconds...");
                 await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             }
         }
@@ -87,7 +84,7 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
                 if (msg == null || msg.ChunkId == Guid.Empty || msg.Vector == null)
                 {
                     _logger.LogWarning("Invalid embeddings:completed message received. correlationId={CorrelationId}", ea.BasicProperties?.CorrelationId);
-                    _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                    _channel!.BasicAck(ea.DeliveryTag, multiple: false);
                     return;
                 }
 
@@ -110,7 +107,7 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
                 if (msg.Vector.Length == 0)
                 {
                     _logger.LogWarning("Received empty embedding vector; acking message without persisting");
-                    _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                    _channel!.BasicAck(ea.DeliveryTag, multiple: false);
                     return;
                 }
 
@@ -120,7 +117,6 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
                 {
                     chunk.Embedding = new Vector(msg.Vector);
                     await db.SaveChangesAsync(stoppingToken);
-
                     _logger.LogInformation("Embedding persisted for chunk");
                 }
                 else
@@ -128,12 +124,12 @@ public sealed class EmbeddingCompletedConsumer : BackgroundService
                     _logger.LogWarning("Chunk not found for embeddings:completed message");
                 }
 
-                _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                _channel!.BasicAck(ea.DeliveryTag, multiple: false);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing embeddings:completed message");
-                _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+                _channel!.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
             }
         };
     }

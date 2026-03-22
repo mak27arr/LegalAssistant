@@ -1,3 +1,5 @@
+using LegalAssistant.Application.Ask.Models;
+
 namespace LegalAssistant.Application.Ask;
 
 public interface IAskService

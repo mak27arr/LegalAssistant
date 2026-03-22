@@ -1,4 +1,5 @@
 using LegalAssistant.Application.Embeddings;
+using LegalAssistant.Application.Ask.Models;
 
 namespace LegalAssistant.Application.Ask;
 
@@ -13,7 +14,7 @@ public sealed class AskService : IAskService
         _search = search;
     }
 
-    public async Task<AskResult> AskAsync(AskQuery query, CancellationToken cancellationToken = default)
+    public async Task<Models.AskResult> AskAsync(Models.AskQuery query, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query.Question))
             throw new ArgumentException("Question is required", nameof(query));
@@ -22,6 +23,6 @@ public sealed class AskService : IAskService
         var embedding = await _embeddings.GetEmbeddingAsync(query.Question, cancellationToken);
 
         var chunks = await _search.SearchAsync(embedding, topK, cancellationToken);
-        return new AskResult(query.Question, topK, chunks);
+        return new Models.AskResult(query.Question, topK, chunks);
     }
 }

@@ -71,8 +71,7 @@ services:
     restart: "no"
     environment:
       - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_EMBEDDINGS_MODEL=nomic-embed-text
-      - OLLAMA_LLM_MODEL=llama3:8b
+      - OLLAMA_MODEL=nomic-embed-text
     volumes:
       - ollama:/root/.ollama
       - ./ollama-init.sh:/ollama-init.sh:ro
@@ -90,7 +89,7 @@ services:
       - UseRabbitMq=true
       - Embeddings__BaseUrl=http://embeddings
       - Ollama__BaseUrl=http://ollama:11434
-      - Ollama__LlmModel=llama3:8b
+      - Ollama__LlmModel=mistral
     ports:
       - "5000:80"
 
@@ -116,9 +115,3 @@ volumes:
   pgdata:
   minio_data:
   ollama:
-
-
-
-
-
-
