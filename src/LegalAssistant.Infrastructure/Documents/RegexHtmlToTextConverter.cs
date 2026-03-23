@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using LegalAssistant.Domain.Documents;
+using LegalAssistant.Application.Documents.Services;
 
 namespace LegalAssistant.Infrastructure.Documents;
 

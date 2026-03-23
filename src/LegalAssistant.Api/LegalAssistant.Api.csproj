@@ -18,4 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\LegalAssistant.Application\LegalAssistant.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Messaging\" />
+    <Folder Include="Services\Abstractions\" />
+  </ItemGroup>
 </Project>

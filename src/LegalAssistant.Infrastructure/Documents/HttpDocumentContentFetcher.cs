@@ -2,7 +2,7 @@ using System;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using LegalAssistant.Domain.Documents;
+using LegalAssistant.Application.Documents.Services;
 
 namespace LegalAssistant.Infrastructure.Documents;
 

@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace LegalAssistant.Domain.Documents;
+namespace LegalAssistant.Application.Documents.Services;
 
 public interface IDocumentContentFetcher
 {

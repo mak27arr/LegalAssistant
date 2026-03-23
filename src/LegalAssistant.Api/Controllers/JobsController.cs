@@ -1,7 +1,6 @@
 using LegalAssistant.Api.Dtos.Jobs;
-using LegalAssistant.Infrastructure.Db;
+using LegalAssistant.Application.Jobs.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace LegalAssistant.Api.Controllers;
 
@@ -9,19 +8,19 @@ namespace LegalAssistant.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class JobsController : ControllerBase
 {
-    private readonly LegalAssistantDbContext _db;
+    private readonly IJobQueryService _jobs;
 
-    public JobsController(LegalAssistantDbContext db)
+    public JobsController(IJobQueryService jobs)
     {
-        _db = db;
+        _jobs = jobs;
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<JobDto>> Get(Guid id)
+    public async Task<ActionResult<JobDto>> Get(Guid id, CancellationToken cancellationToken)
     {
-        var job = await _db.Jobs.FirstOrDefaultAsync(j => j.Id == id);
+        var job = await _jobs.GetByIdAsync(id, cancellationToken);
         if (job == null) return NotFound();
 
-        return Ok(new JobDto(job.Id, job.Type.ToString(), job.Status.ToString(), job.Payload, job.Result, job.CreatedAt, job.UpdatedAt));
+        return Ok(new JobDto(job.Id, job.Type, job.Status, job.Payload, job.Result, job.CreatedAt, job.UpdatedAt));
     }
 }

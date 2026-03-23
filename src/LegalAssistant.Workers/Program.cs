@@ -8,7 +8,7 @@ using System;
 using LegalAssistant.Application.Embeddings;
 using LegalAssistant.Domain.Chunking;
 using System.Text.RegularExpressions;
-using LegalAssistant.Domain.Documents;
+using LegalAssistant.Application.Documents.Services;
 using LegalAssistant.Infrastructure.Documents;
 using LegalAssistant.Application.Persistence;
 using LegalAssistant.Application.Documents;
@@ -19,6 +19,9 @@ using LegalAssistant.Infrastructure.Jobs;
 using LegalAssistant.Infrastructure.Chunks;
 using LegalAssistant.Application.Common;
 using LegalAssistant.Infrastructure.Common;
+using LegalAssistant.Application.Jobs.Services;
+using LegalAssistant.Application.Jobs;
+using LegalAssistant.Application.Rag.Services;
 using Microsoft.Extensions.Logging;
 
 var host = Host.CreateDefaultBuilder(args)
@@ -66,6 +69,10 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddScoped<IJobRepository, EfJobRepository>();
         services.AddScoped<IJobQueue, EfJobQueue>();
         services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
+
+        services.AddScoped<IIngestJobProcessor, IngestJobProcessor>();
+
+        services.AddSingleton<IRagPromptBuilder, DefaultRagPromptBuilder>();
 
         services.AddScoped<ICorrelationContext, CorrelationContext>();
 

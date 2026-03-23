@@ -3,19 +3,20 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
-using LegalAssistant.Api.Messaging;
 using Microsoft.Extensions.Configuration;
 using System;
-using LegalAssistant.Api.Services;
-using LegalAssistant.Api.Services.Abstractions;
 using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Embeddings;
 using LegalAssistant.Application.Common;
 using LegalAssistant.Application.Rag;
+using LegalAssistant.Application.Rag.Services;
 using LegalAssistant.Application.Persistence;
 using LegalAssistant.Application.Documents;
+using LegalAssistant.Application.Documents.Services;
+using LegalAssistant.Infrastructure.Messaging;
 using LegalAssistant.Application.Jobs;
 using LegalAssistant.Application.Chunks;
+using LegalAssistant.Application.Jobs.Services;
 using LegalAssistant.Infrastructure.Embeddings;
 using LegalAssistant.Infrastructure.Ask;
 using LegalAssistant.Infrastructure.Rag;
@@ -42,8 +43,8 @@ else
     builder.Services.AddDbContext<LegalAssistantDbContext>(opt => opt.UseNpgsql(conn, o => o.UseVector()));
 }
 
-// Messaging - use RabbitMQ publisher
-builder.Services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();
+// Messaging is implemented in Infrastructure
+builder.Services.AddSingleton<IDocumentIngestJobPublisher, RabbitMqDocumentIngestJobPublisher>();
 
 // Hosted services
 // The ingest worker runs in the separate worker service; do not register it in the API.
@@ -64,6 +65,7 @@ builder.Services.AddScoped<IChunkSearchService, ChunkSearchService>();
 
 builder.Services.AddScoped<IRagAnswerService, RagAnswerService>();
 builder.Services.AddScoped<IRagPromptTemplateProvider, DbRagPromptTemplateProvider>();
+builder.Services.AddSingleton<IRagPromptBuilder, DefaultRagPromptBuilder>();
 builder.Services.AddHttpClient<ILlmClient, OllamaLlmClient>((sp, client) =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
@@ -77,11 +79,12 @@ builder.Services.AddScoped<IJobRepository, EfJobRepository>();
 builder.Services.AddScoped<IJobQueue, EfJobQueue>();
 builder.Services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
 
+builder.Services.AddScoped<IJobQueryService, JobQueryService>();
+
 builder.Services.AddScoped<ICorrelationContext, CorrelationContext>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 
-// Application services
-builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<IDocumentCommandService, DocumentCommandService>();
 
 builder.Services.AddHttpContextAccessor();
 

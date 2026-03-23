@@ -1,11 +1,11 @@
 using System;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Ask.Models;
 using LegalAssistant.Application.Rag.Models;
+using LegalAssistant.Application.Rag.Services;
 
 namespace LegalAssistant.Application.Rag;
 
@@ -14,12 +14,14 @@ public sealed class RagAnswerService : IRagAnswerService
     private readonly IAskService _ask;
     private readonly ILlmClient _llm;
     private readonly IRagPromptTemplateProvider _promptTemplate;
+    private readonly IRagPromptBuilder _promptBuilder;
 
-    public RagAnswerService(IAskService ask, ILlmClient llm, IRagPromptTemplateProvider promptTemplate)
+    public RagAnswerService(IAskService ask, ILlmClient llm, IRagPromptTemplateProvider promptTemplate, IRagPromptBuilder promptBuilder)
     {
         _ask = ask;
         _llm = llm;
         _promptTemplate = promptTemplate;
+        _promptBuilder = promptBuilder;
     }
 
     public async Task<RagAnswerResult> AnswerAsync(RagAnswerQuery query, CancellationToken cancellationToken = default)
@@ -38,37 +40,11 @@ public sealed class RagAnswerService : IRagAnswerService
         var ask = await _ask.AskAsync(new AskQuery(query.Question, topK), cancellationToken);
 
         var template = await _promptTemplate.GetAsync(cancellationToken);
-        var prompt = BuildPrompt(template.SystemHeader, template.InstructionsFooter, ask.Question, ask.Chunks);
+        var prompt = _promptBuilder.Build(template.SystemHeader, template.InstructionsFooter, ask.Question, ask.Chunks);
         var sources = ask.Chunks
             .Select(c => new RagAnswerSource(c.ChunkId, c.DocumentId, c.ChunkIndex, c.Text, c.SourceUrl, c.Score))
             .ToList();
 
         return new RagPromptResult(query.Question, topK, sources, prompt);
-    }
-
-    private static string BuildPrompt(string systemHeader, string instructionsFooter, string question, IReadOnlyList<AskChunkResult> chunks)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine(systemHeader);
-        sb.AppendLine();
-        sb.AppendLine("Питання:");
-        sb.AppendLine(question);
-        sb.AppendLine();
-        sb.AppendLine("Джерела (витяги):");
-        sb.AppendLine();
-
-        var i = 1;
-        foreach (var c in chunks)
-        {
-            sb.AppendLine($"[{i}] doc={c.DocumentId} chunk={c.ChunkIndex} score={c.Score:0.####} url={c.SourceUrl}");
-            sb.AppendLine(c.Text);
-            sb.AppendLine();
-            i++;
-        }
-
-        sb.AppendLine("Інструкції:");
-        sb.AppendLine(instructionsFooter);
-
-        return sb.ToString();
     }
 }

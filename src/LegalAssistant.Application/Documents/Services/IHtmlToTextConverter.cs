@@ -1,4 +1,4 @@
-namespace LegalAssistant.Domain.Documents;
+namespace LegalAssistant.Application.Documents.Services;
 
 public interface IHtmlToTextConverter
 {
