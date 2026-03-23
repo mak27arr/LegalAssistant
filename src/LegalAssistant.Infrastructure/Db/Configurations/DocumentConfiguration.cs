@@ -17,6 +17,7 @@ public sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
         b.Property(x => x.Url).HasMaxLength(2000).HasColumnName("url");
         b.Property(x => x.Content).HasColumnName("content");
         b.Property(x => x.Metadata).HasColumnName("metadata");
+        b.Property(x => x.ActiveChunkingRunId).HasColumnName("active_chunking_run_id");
 
         b.Property(x => x.Version).HasDefaultValue(1).HasColumnName("version");
         b.Property(x => x.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");

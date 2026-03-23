@@ -1,15 +1,16 @@
 using System.Collections.Generic;
 using System.Text;
 using LegalAssistant.Application.Ask.Models;
+using LegalAssistant.Application.Rag.Models;
 
 namespace LegalAssistant.Application.Rag.Services;
 
 public sealed class DefaultRagPromptBuilder : IRagPromptBuilder
 {
-    public string Build(string systemHeader, string instructionsFooter, string question, IReadOnlyList<AskChunkResult> chunks)
+    public string Build(RagPromptTemplateDto template, string question, IReadOnlyList<AskChunkResult> chunks)
     {
         var sb = new StringBuilder();
-        sb.AppendLine(systemHeader);
+        sb.AppendLine(template.SystemHeader);
         sb.AppendLine();
         sb.AppendLine("Питання:");
         sb.AppendLine(question);
@@ -27,7 +28,7 @@ public sealed class DefaultRagPromptBuilder : IRagPromptBuilder
         }
 
         sb.AppendLine("Інструкції:");
-        sb.AppendLine(instructionsFooter);
+        sb.AppendLine(template.InstructionsFooter);
 
         return sb.ToString();
     }

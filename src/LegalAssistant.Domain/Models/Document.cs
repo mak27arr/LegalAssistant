@@ -12,9 +12,11 @@ namespace LegalAssistant.Domain.Models
         public string Metadata { get; set; }
         public int Version { get; set; }
         public bool IsDeleted { get; set; }
+        public Guid? ActiveChunkingRunId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 
         public ICollection<DocumentChunk> Chunks { get; set; }
+        public ICollection<ChunkingRun> ChunkingRuns { get; set; }
     }
 }

@@ -7,6 +7,7 @@ namespace LegalAssistant.Domain.Models
     {
         public Guid Id { get; set; }
         public Guid DocumentId { get; set; }
+        public Guid? ChunkingRunId { get; set; }
         public int ChunkIndex { get; set; }
         public string Text { get; set; }
         public string CharRange { get; set; }

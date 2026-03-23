@@ -2,11 +2,11 @@ using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using LegalAssistant.Infrastructure.Db;
-using Microsoft.EntityFrameworkCore;
+using LegalAssistant.Application.Jobs.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -16,14 +16,19 @@ public sealed class RabbitMqIngestConsumerHostedService : BackgroundService
 {
     private readonly IServiceProvider _sp;
     private readonly ILogger<RabbitMqIngestConsumerHostedService> _logger;
+    private readonly IOptions<RabbitMqProcessingOptions> _processingOptions;
 
     private IConnection? _connection;
     private IModel? _channel;
 
-    public RabbitMqIngestConsumerHostedService(IServiceProvider sp, ILogger<RabbitMqIngestConsumerHostedService> logger)
+    public RabbitMqIngestConsumerHostedService(
+        IServiceProvider sp,
+        ILogger<RabbitMqIngestConsumerHostedService> logger,
+        IOptions<RabbitMqProcessingOptions> processingOptions)
     {
         _sp = sp;
         _logger = logger;
+        _processingOptions = processingOptions;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,32 +49,25 @@ public sealed class RabbitMqIngestConsumerHostedService : BackgroundService
                 _channel?.Dispose();
                 _channel = _connection.CreateModel();
 
-                _channel.ExchangeDeclare("ingest", ExchangeType.Fanout, durable: true);
-                var queueName = _channel.QueueDeclare().QueueName;
-                _channel.QueueBind(queue: queueName, exchange: "ingest", routingKey: "");
+                IngestRabbitMqTopology.EnsureAll(_connection);
+                _channel.BasicQos(0, 1, false);
 
                 _logger.LogInformation("RabbitMQ ingest consumer connected to {Host}:{Port}", host, port);
 
                 var consumer = new EventingBasicConsumer(_channel);
                 consumer.Received += async (_, ea) =>
                 {
-                    var payload = Encoding.UTF8.GetString(ea.Body.ToArray());
                     var corr = ea.BasicProperties?.CorrelationId;
                     _logger.LogInformation("Received ingest message, corrId={Corr}", corr);
 
                     try
                     {
                         using var scope = _sp.CreateScope();
-                        var db = scope.ServiceProvider.GetRequiredService<LegalAssistantDbContext>();
+                        var processor = scope.ServiceProvider.GetRequiredService<IIngestJobProcessor>();
 
                         if (Guid.TryParse(corr, out var jobId))
                         {
-                            var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == jobId, stoppingToken);
-                            if (job != null)
-                            {
-                                job.Payload = payload;
-                                await db.SaveChangesAsync(stoppingToken);
-                            }
+                            await processor.ProcessAsync(jobId, stoppingToken);
                         }
 
                         _channel.BasicAck(ea.DeliveryTag, multiple: false);
@@ -81,7 +79,7 @@ public sealed class RabbitMqIngestConsumerHostedService : BackgroundService
                     }
                 };
 
-                _channel.BasicConsume(queue: queueName, autoAck: false, consumerTag: "", noLocal: false, exclusive: false, arguments: null, consumer: consumer);
+                _channel.BasicConsume(queue: IngestRabbitMqTopology.Queue, autoAck: false, consumerTag: "", noLocal: false, exclusive: false, arguments: null, consumer: consumer);
 
                 var tcs = new TaskCompletionSource();
                 using var reg = stoppingToken.Register(() => tcs.TrySetResult());

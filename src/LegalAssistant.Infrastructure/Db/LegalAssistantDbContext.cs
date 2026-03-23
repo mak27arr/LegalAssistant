@@ -11,6 +11,7 @@ namespace LegalAssistant.Infrastructure.Db
 
         public DbSet<Document> Documents { get; set; }
         public DbSet<DocumentChunk> DocumentChunks { get; set; }
+        public DbSet<ChunkingRun> ChunkingRuns { get; set; }
         public DbSet<JobRecord> Jobs { get; set; }
         public DbSet<RagPromptTemplate> RagPromptTemplates { get; set; }
 

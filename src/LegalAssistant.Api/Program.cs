@@ -17,6 +17,8 @@ using LegalAssistant.Infrastructure.Messaging;
 using LegalAssistant.Application.Jobs;
 using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Jobs.Services;
+using LegalAssistant.Application.Chunking.Services;
+using LegalAssistant.Infrastructure.Chunking;
 using LegalAssistant.Infrastructure.Embeddings;
 using LegalAssistant.Infrastructure.Ask;
 using LegalAssistant.Infrastructure.Rag;
@@ -80,6 +82,11 @@ builder.Services.AddScoped<IJobQueue, EfJobQueue>();
 builder.Services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
 
 builder.Services.AddScoped<IJobQueryService, JobQueryService>();
+
+builder.Services.AddSingleton<IChunkingStrategySelector, DefaultChunkingStrategySelector>();
+builder.Services.AddSingleton<IDocumentChunkingPolicyFactory, DefaultDocumentChunkingPolicyFactory>();
+builder.Services.AddScoped<IChunkingRunRepository, EfChunkingRunRepository>();
+builder.Services.AddScoped<IChunkingRunService, ChunkingRunService>();
 
 builder.Services.AddScoped<ICorrelationContext, CorrelationContext>();
 builder.Services.AddSingleton<IClock, SystemClock>();

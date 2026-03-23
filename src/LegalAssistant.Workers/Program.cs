@@ -3,11 +3,8 @@ using Microsoft.Extensions.Hosting;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using LegalAssistant.Workers;
 using System;
 using LegalAssistant.Application.Embeddings;
-using LegalAssistant.Domain.Chunking;
-using System.Text.RegularExpressions;
 using LegalAssistant.Application.Documents.Services;
 using LegalAssistant.Infrastructure.Documents;
 using LegalAssistant.Application.Persistence;
@@ -23,6 +20,10 @@ using LegalAssistant.Application.Jobs.Services;
 using LegalAssistant.Application.Jobs;
 using LegalAssistant.Application.Rag.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using LegalAssistant.Infrastructure.Messaging;
+using LegalAssistant.Application.Chunking.Services;
+using LegalAssistant.Infrastructure.Chunking;
 
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
@@ -48,18 +49,10 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IHtmlToTextConverter, RegexHtmlToTextConverter>();
         services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>();
 
-        services.AddSingleton<IChunkingPolicy>(sp =>
-        {
-            var config = sp.GetRequiredService<IConfiguration>();
-            var chunkSize = config.GetValue<int?>("Chunking:ChunkSize") ?? 2000;
-            var maxChunkSize = config.GetValue<int?>("Chunking:MaxChunkSize") ?? chunkSize;
-            var pattern = config.GetValue<string>("Chunking:ArticleRegex") ?? @"Стаття\s+\d+[\d¹²³]*[\w\-]*";
-
-            var articleRegex = new Regex(pattern, RegexOptions.Multiline | RegexOptions.CultureInvariant);
-            var regex = new RegexArticleChunkingStrategy(articleRegex, maxChunkSize: maxChunkSize);
-            var fallback = new FixedSizeChunkingStrategy(chunkSize: chunkSize);
-            return new RegexOrFixedChunkingPolicy(regex, fallback);
-        });
+        services.AddSingleton<IChunkingStrategySelector, DefaultChunkingStrategySelector>();
+        services.AddSingleton<IDocumentChunkingPolicyFactory, DefaultDocumentChunkingPolicyFactory>();
+        services.AddScoped<IChunkingRunRepository, EfChunkingRunRepository>();
+        services.AddScoped<IChunkingRunService, ChunkingRunService>();
 
         // Embedding service via RabbitMQ
         services.AddSingleton<IEmbeddingEnqueueService, LegalAssistant.Infrastructure.Messaging.RabbitMqEmbeddingRequestPublisher>();
@@ -76,7 +69,6 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddScoped<ICorrelationContext, CorrelationContext>();
 
-        services.AddHostedService<IngestWorker>();
         services.AddHostedService<LegalAssistant.Infrastructure.Messaging.RabbitMqEmbeddingCompletedConsumerHostedService>();
         services.AddHostedService<LegalAssistant.Infrastructure.Messaging.RabbitMqIngestConsumerHostedService>();
     })

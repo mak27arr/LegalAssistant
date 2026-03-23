@@ -13,6 +13,9 @@ public sealed class DocumentChunkConfiguration : IEntityTypeConfiguration<Docume
 
         b.Property(x => x.Id).HasColumnName("id");
         b.Property(x => x.DocumentId).HasColumnName("document_id");
+        b.Property(x => x.ChunkingRunId)
+            .HasColumnName("chunking_run_id")
+            .IsRequired(false);
         b.Property(x => x.ChunkIndex).HasColumnName("chunk_index");
 
         b.Property(x => x.Text).HasColumnName("text");
@@ -28,5 +31,9 @@ public sealed class DocumentChunkConfiguration : IEntityTypeConfiguration<Docume
         b.HasOne(x => x.Document)
             .WithMany(d => d.Chunks)
             .HasForeignKey(x => x.DocumentId);
+
+        b.HasOne<ChunkingRun>()
+            .WithMany()
+            .HasForeignKey(x => x.ChunkingRunId);
     }
 }

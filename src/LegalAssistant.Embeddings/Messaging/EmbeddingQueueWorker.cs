@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LegalAssistant.Embeddings.Services;
 using LegalAssistant.Infrastructure.Messaging;
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -16,12 +17,18 @@ public sealed class EmbeddingQueueWorker : BackgroundService
     private readonly RabbitMqOptions _options;
     private readonly IEmbeddingGenerator _generator;
     private readonly ILogger<EmbeddingQueueWorker> _logger;
+    private readonly IOptions<RabbitMqProcessingOptions> _processingOptions;
 
-    public EmbeddingQueueWorker(RabbitMqOptions options, IEmbeddingGenerator generator, ILogger<EmbeddingQueueWorker> logger)
+    public EmbeddingQueueWorker(
+        RabbitMqOptions options,
+        IEmbeddingGenerator generator,
+        ILogger<EmbeddingQueueWorker> logger,
+        IOptions<RabbitMqProcessingOptions> processingOptions)
     {
         _options = options;
         _generator = generator;
         _logger = logger;
+        _processingOptions = processingOptions;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -132,7 +139,33 @@ public sealed class EmbeddingQueueWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling embedding queue message");
-            channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+
+            var options = _processingOptions.Value;
+            var attempts = RabbitMqRetryPolicy.GetAttempts(ea.BasicProperties?.Headers) + 1;
+
+            if (attempts >= options.MaxAttempts)
+            {
+                _logger.LogWarning("Max attempts reached; dead-lettering embedding message. attempts={Attempts}", attempts);
+                channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
+
+            var delaySeconds = RabbitMqRetryPolicy.NextDelaySeconds(attempts, options);
+            _logger.LogWarning("Retrying embedding message. attempts={Attempts} delaySeconds={DelaySeconds}", attempts, delaySeconds);
+
+            var headers = ea.BasicProperties?.Headers ?? new System.Collections.Generic.Dictionary<string, object>();
+            RabbitMqRetryPolicy.SetAttempts(headers, attempts);
+
+            await RabbitMqRetryPublisher.PublishDelayedAsync(
+                channel,
+                _options.QueueName,
+                ea.Body,
+                ea.BasicProperties?.CorrelationId,
+                headers,
+                delaySeconds,
+                stoppingToken);
+
+            channel.BasicAck(ea.DeliveryTag, multiple: false);
         }
     }
 

@@ -40,7 +40,7 @@ public sealed class RagAnswerService : IRagAnswerService
         var ask = await _ask.AskAsync(new AskQuery(query.Question, topK), cancellationToken);
 
         var template = await _promptTemplate.GetAsync(cancellationToken);
-        var prompt = _promptBuilder.Build(template.SystemHeader, template.InstructionsFooter, ask.Question, ask.Chunks);
+        var prompt = _promptBuilder.Build(template, ask.Question, ask.Chunks);
         var sources = ask.Chunks
             .Select(c => new RagAnswerSource(c.ChunkId, c.DocumentId, c.ChunkIndex, c.Text, c.SourceUrl, c.Score))
             .ToList();

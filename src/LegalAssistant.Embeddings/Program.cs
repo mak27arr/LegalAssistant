@@ -16,6 +16,9 @@ builder.Services.AddSingleton<LegalAssistant.Embeddings.Messaging.RabbitMqOption
     };
 });
 
+builder.Services.Configure<LegalAssistant.Infrastructure.Messaging.RabbitMqProcessingOptions>(
+    builder.Configuration.GetSection("RabbitMq:Processing"));
+
 builder.Services.AddHttpClient("ollama", (sp, client) =>
 {
     var config = sp.GetRequiredService<IConfiguration>();

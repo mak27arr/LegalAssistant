@@ -39,7 +39,7 @@ public sealed class RabbitMqDocumentIngestJobPublisher : IDocumentIngestJobPubli
             _connection = _factory.CreateConnection();
             _channel?.Dispose();
             _channel = _connection.CreateModel();
-            _channel.ExchangeDeclare("ingest", ExchangeType.Fanout, durable: true);
+            IngestRabbitMqTopology.EnsureAll(_connection);
         }
     }
 
@@ -52,7 +52,12 @@ public sealed class RabbitMqDocumentIngestJobPublisher : IDocumentIngestJobPubli
         props.Persistent = true;
         props.CorrelationId = jobId.ToString("N");
 
-        _channel.BasicPublish(exchange: "ingest", routingKey: "", mandatory: false, basicProperties: props, body: body);
+        _channel.BasicPublish(
+            exchange: "",
+            routingKey: IngestRabbitMqTopology.Queue,
+            mandatory: false,
+            basicProperties: props,
+            body: body);
         _logger.LogInformation("Published ingest job message. jobId={JobId}", jobId);
         return Task.CompletedTask;
     }
