@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LegalAssistant.Embeddings",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LegalAssistant.Application", "src\LegalAssistant.Application\LegalAssistant.Application.csproj", "{144407B8-C562-4DA1-98F2-7B1F2F63F106}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LegalAssistant.Logging", "src\LegalAssistant.Logging\LegalAssistant.Logging.csproj", "{F21BBED8-E76D-4155-835C-8D1FDC70E948}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -105,6 +107,18 @@ Global
 		{144407B8-C562-4DA1-98F2-7B1F2F63F106}.Release|x64.Build.0 = Release|Any CPU
 		{144407B8-C562-4DA1-98F2-7B1F2F63F106}.Release|x86.ActiveCfg = Release|Any CPU
 		{144407B8-C562-4DA1-98F2-7B1F2F63F106}.Release|x86.Build.0 = Release|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Debug|x64.Build.0 = Debug|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Debug|x86.Build.0 = Debug|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Release|x64.ActiveCfg = Release|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Release|x64.Build.0 = Release|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Release|x86.ActiveCfg = Release|Any CPU
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -112,6 +126,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{97A5FB36-76D4-4293-84F4-69AD2E3CCD20} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{144407B8-C562-4DA1-98F2-7B1F2F63F106} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{F21BBED8-E76D-4155-835C-8D1FDC70E948} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B93DC6DF-7679-41CB-B0D6-70F406065BAF}

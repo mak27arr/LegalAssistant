@@ -14,9 +14,15 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
+    <!-- Logging configured via Microsoft.Extensions.Logging and FileLoggerProvider -->
+    <!-- Serilog removed; using lightweight FileLoggerProvider + Console -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\LegalAssistant.Application\LegalAssistant.Application.csproj" />
+    <ProjectReference Include="..\LegalAssistant.Logging\LegalAssistant.Logging.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Serilog removed; using FileLoggerProvider sidecar approach -->
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Messaging\" />

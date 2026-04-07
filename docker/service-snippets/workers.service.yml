@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  workers:
+    build:
+      context: ./src/LegalAssistant.Workers
++      dockerfile: Dockerfile
+    image: legalassistant_workers:local
+    environment:
+      - LOG_PATH=/var/log/myapp/workers.log
+    volumes:
+      - ./logs:/var/log/myapp
+    depends_on:
+      - elasticsearch
+      - filebeat

@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./src/LegalAssistant.Api
+      dockerfile: Dockerfile
+    image: legalassistant_api:local
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - LOG_PATH=/var/log/myapp/api.log
+    volumes:
+      - ./logs:/var/log/myapp
+    ports:
+      - "5000:80"
+    depends_on:
+      - elasticsearch
+      - filebeat

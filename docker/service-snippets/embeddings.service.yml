@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  embeddings:
+    build:
+      context: ./src/LegalAssistant.Embeddings
+      dockerfile: Dockerfile
+    image: legalassistant_embeddings:local
+    environment:
+      - LOG_PATH=/var/log/myapp/embeddings.log
+    volumes:
+      - ./logs:/var/log/myapp
+    depends_on:
+      - elasticsearch
+      - filebeat

@@ -1,3 +1,4 @@
+using LegalAssistant.Logging.DependencyInjection;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -41,6 +42,10 @@ builder.Services.AddSingleton<LegalAssistant.Embeddings.Services.IEmbeddingGener
 
 builder.Services.AddHostedService<LegalAssistant.Embeddings.Messaging.EmbeddingQueueWorker>();
 
+// Centralized logging registration for container (file JSON logs for sidecar/Filebeat)
+// Centralized logging registration for container (file JSON logs for sidecar/Filebeat)
+builder.Services.AddCentralizedLogging(builder.Configuration, "embeddings");
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -48,6 +53,13 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+
+// Request timing middleware - can be toggled via Logging:RequestTiming:Enabled
+var enableRequestTiming = builder.Configuration.GetValue<bool?>("Logging:RequestTiming:Enabled") ?? true;
+if (enableRequestTiming)
+{
+    app.UseMiddleware<LegalAssistant.Logging.Middleware.RequestTimingMiddleware>();
 }
 
 app.MapPost("/embed", async (HttpContext http, EmbedRequest req, LegalAssistant.Embeddings.Services.IEmbeddingGenerator generator, ILoggerFactory loggerFactory, CancellationToken ct) =>

@@ -7,9 +7,15 @@
   <ItemGroup>
     <ProjectReference Include="../LegalAssistant.Domain/LegalAssistant.Domain.csproj" />
     <ProjectReference Include="../LegalAssistant.Infrastructure/LegalAssistant.Infrastructure.csproj" />
+    <ProjectReference Include="..\LegalAssistant.Application\LegalAssistant.Application.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
+    <!-- Logging configured via Microsoft.Extensions.Logging and FileLoggerProvider -->
+    <!-- Serilog removed; using lightweight FileLoggerProvider + Console -->
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LegalAssistant.Logging\LegalAssistant.Logging.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Embeddings\" />

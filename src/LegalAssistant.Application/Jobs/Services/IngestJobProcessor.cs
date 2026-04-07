@@ -61,7 +61,7 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
             var chunkIndex = 0;
 
             var (run, chunking) = await _chunkingRunService.CreateAsync(
-                new ChunkingRunContext(doc.Id, doc.Url),
+                new ChunkingRunContext(doc.Id, doc.Url, text),
                 cancellationToken);
 
             await _chunkingRuns.AddAsync(run, cancellationToken);

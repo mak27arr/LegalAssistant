@@ -11,12 +11,16 @@ services:
       - ./initdb:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
+    networks:
+      - legal-assistant-net
 
   redis:
     image: redis:7
     restart: always
     ports:
       - "6379:6379"
+    networks:
+      - legal-assistant-net
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -27,6 +31,8 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    networks:
+      - legal-assistant-net
 
   minio:
     image: minio/minio:latest
@@ -38,6 +44,8 @@ services:
       - "9000:9000"
     volumes:
       - minio_data:/data
+    networks:
+      - legal-assistant-net
 
   embeddings:
     build:
@@ -49,12 +57,17 @@ services:
       - Embeddings__Mode=ollama
       - Ollama__BaseUrl=http://ollama:11434
       - Ollama__Model=nomic-embed-text
+      - LOG_PATH=/var/log/myapp/embeddings.log
     ports:
       - "8080:80"
     depends_on:
       - rabbitmq
       - ollama
       - ollama-init
+    volumes:
+      - ./logs:/var/log/myapp
+    networks:
+      - legal-assistant-net
 
   ollama:
     image: ollama/ollama:latest
@@ -63,6 +76,8 @@ services:
       - "11434:11434"
     volumes:
       - ollama:/root/.ollama
+    networks:
+      - legal-assistant-net
 
   ollama-init:
     image: ollama/ollama:latest
@@ -77,6 +92,8 @@ services:
       - ollama:/root/.ollama
       - ./ollama-init.sh:/ollama-init.sh:ro
     entrypoint: ["/bin/sh", "/ollama-init.sh"]
+    networks:
+      - legal-assistant-net
 
   api:
     build:
@@ -91,8 +108,13 @@ services:
       - Embeddings__BaseUrl=http://embeddings
       - Ollama__BaseUrl=http://ollama:11434
       - Ollama__LlmModel=llama3:8b
+      - LOG_PATH=/var/log/myapp/api.log
     ports:
       - "5000:80"
+    volumes:
+      - ./logs:/var/log/myapp
+    networks:
+      - legal-assistant-net
 
   worker:
     build:
@@ -110,12 +132,72 @@ services:
       - RABBITMQ_USER=guest
       - RABBITMQ_PASS=guest
       - Embeddings__BaseUrl=http://embeddings
+      - LOG_PATH=/var/log/myapp/workers.log
     command: dotnet LegalAssistant.Workers.dll
+    volumes:
+      - ./logs:/var/log/myapp
+    networks:
+      - legal-assistant-net
+
+  # ELK stack for local development (Filebeat reads logs and ships to Elasticsearch)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.3
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - legal-assistant-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.10.3
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - legal-assistant-net
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.10.3
+    container_name: filebeat
+    user: root
+    volumes:
+      # mount config into a temporary path and copy inside container to avoid host permission issues on Windows
+      - ./filebeat:/tmp/filebeat:ro
+      - ./logs:/var/log/myapp:ro
+    entrypoint: ["/bin/sh","-c","cp /tmp/filebeat/filebeat.yml /usr/share/filebeat/filebeat.yml && /usr/local/bin/docker-entrypoint -e"]
+    depends_on:
+      - elasticsearch
+    networks:
+      - legal-assistant-net
+  logrotate:
+    image: busybox
+    container_name: logrotate
+    volumes:
+      - ./logrotate/app-logrotate.conf:/etc/logrotate.d/app:ro
+      - ./logs:/var/log/myapp
+    entrypoint: ["/bin/sh","-c","while true; do logrotate /etc/logrotate.d/app; sleep 3600; done"]
+    networks:
+      - legal-assistant-net
 
 volumes:
   pgdata:
   minio_data:
   ollama:
+  esdata:
+
+networks:
+  legal-assistant-net:
+    driver: bridge
 
 
 

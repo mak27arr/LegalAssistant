@@ -1,23 +1,36 @@
 using System.Text.Json;
 using LegalAssistant.Application.Chunking.Models;
 using LegalAssistant.Application.Chunking.Services;
+using LegalAssistant.Domain.Chunking;
 
 namespace LegalAssistant.Infrastructure.Chunking;
 
 public sealed class DefaultChunkingStrategySelector : IChunkingStrategySelector
 {
-    public ChunkingRunDescriptor Describe(ChunkingRunContext context)
-    {
-        // MVP: single default strategy. Can be extended to choose based on doc metadata/content type.
-        var parameters = new
-        {
-            mode = "regex_or_fixed",
-            // settings are controlled by DI-configured chunking policy factory
-        };
+    private const string Version = "v1";
 
-        return new ChunkingRunDescriptor(
-            StrategyName: "regex_or_fixed",
-            StrategyVersion: "v1",
-            ParamsJson: JsonSerializer.Serialize(parameters));
+    private readonly IEnumerable<IStrategyCandidate> _candidates;
+
+    public DefaultChunkingStrategySelector(IEnumerable<IStrategyCandidate> candidates)
+    {
+        _candidates = candidates ?? Enumerable.Empty<IStrategyCandidate>();
+    }
+
+    public (ChunkingRunDescriptor Descriptor, IChunkingPolicy Policy) Select(ChunkingRunContext context)
+    {
+        var text = context.Text ?? string.Empty;
+
+        var candidate = _candidates.FirstOrDefault(c => c.CanProcess(text));
+        if (candidate is not null)
+            return (candidate.Describe(), candidate.CreatePolicy());
+
+        var fixedCandidate = _candidates.FirstOrDefault(c => c.Describe().StrategyName == "fixed_size");
+        if (fixedCandidate is not null)
+            return (fixedCandidate.Describe(), fixedCandidate.CreatePolicy());
+
+        var fallbackParams = new { mode = "fixed_size" };
+        var fallbackDesc = new ChunkingRunDescriptor($"fixed_size:{Version}", "fixed_size", Version, JsonSerializer.Serialize(fallbackParams));
+        var fallbackPolicy = new RegexOrFixedChunkingPolicy(new FixedSizeChunkingStrategy(), new FixedSizeChunkingStrategy());
+        return (fallbackDesc, fallbackPolicy);
     }
 }

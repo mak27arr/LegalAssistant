@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+// Using built-in logging and FileLoggerProvider registered in AddCentralizedLogging
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -16,6 +17,9 @@ using LegalAssistant.Infrastructure.Jobs;
 using LegalAssistant.Infrastructure.Chunks;
 using LegalAssistant.Application.Common;
 using LegalAssistant.Infrastructure.Common;
+using LegalAssistant.Workers.DependencyInjection;
+using LegalAssistant.Logging.DependencyInjection;
+using LegalAssistant.Infrastructure.DependencyInjection;
 using LegalAssistant.Application.Jobs.Services;
 using LegalAssistant.Application.Jobs;
 using LegalAssistant.Application.Rag.Services;
@@ -34,46 +38,17 @@ var host = Host.CreateDefaultBuilder(args)
                 category == "Microsoft.EntityFrameworkCore.Database.Command" ? level >= LogLevel.Warning : true);
         });
 
-        var conn = context.Configuration.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrEmpty(conn))
-        {
-            services.AddDbContext<LegalAssistantDbContext>(opt => opt.UseInMemoryDatabase("legal_dev"));
-        }
-        else
-        {
-            services.AddDbContext<LegalAssistantDbContext>(opt => opt.UseNpgsql(conn, o => o.UseVector()));
-        }
+        // provide service name so logs go to separate per-service files
+        services.AddCentralizedLogging(context.Configuration, "workers");
 
-        services.AddHttpClient();
-
-        services.AddSingleton<IHtmlToTextConverter, RegexHtmlToTextConverter>();
-        services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>();
-
-        services.AddSingleton<IChunkingStrategySelector, DefaultChunkingStrategySelector>();
-        services.AddSingleton<IDocumentChunkingPolicyFactory, DefaultDocumentChunkingPolicyFactory>();
-        services.AddScoped<IChunkingRunRepository, EfChunkingRunRepository>();
-        services.AddScoped<IChunkingRunService, ChunkingRunService>();
-
-        // Embedding service via RabbitMQ
-        services.AddSingleton<IEmbeddingEnqueueService, LegalAssistant.Infrastructure.Messaging.RabbitMqEmbeddingRequestPublisher>();
-
-        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
-        services.AddScoped<IDocumentRepository, EfDocumentRepository>();
-        services.AddScoped<IJobRepository, EfJobRepository>();
-        services.AddScoped<IJobQueue, EfJobQueue>();
-        services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
-
-        services.AddScoped<IIngestJobProcessor, IngestJobProcessor>();
-
-        services.AddSingleton<IRagPromptBuilder, DefaultRagPromptBuilder>();
-
-        services.AddScoped<ICorrelationContext, CorrelationContext>();
-
-        services.AddHostedService<LegalAssistant.Infrastructure.Messaging.RabbitMqEmbeddingCompletedConsumerHostedService>();
-        services.AddHostedService<LegalAssistant.Infrastructure.Messaging.RabbitMqIngestConsumerHostedService>();
+        services.AddWorkerInfrastructure(context.Configuration);
     })
     .Build();
 
-// Database migrations are applied by the API on startup.
+using (var scope = host.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<LegalAssistantDbContext>();
+    dbContext.Database.Migrate();
+}
 
 await host.RunAsync();

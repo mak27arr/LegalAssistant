@@ -1,0 +1,27 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/myapp/*.log
+  json.keys_under_root: true
+  json.add_error_key: true
+  # ignore very old files and close file handlers for inactive files
+  ignore_older: 72h
+  # clean_inactive must be greater than ignore_older + scan_frequency
+  clean_inactive: 73h
+  close_older: 1h
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+
+setup.kibana:
+  host: "kibana:5601"
+
+# Let Filebeat manage index lifecycle (ILM) for retention in Elasticsearch
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "filebeat"
+setup.ilm.pattern: "{now/d}-000001"
+
+processors:
+- add_host_metadata: ~
+# - add_cloud_metadata: ~
