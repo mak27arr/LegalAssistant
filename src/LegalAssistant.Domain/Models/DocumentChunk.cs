@@ -1,5 +1,4 @@
 using System;
-using Pgvector;
 
 namespace LegalAssistant.Domain.Models
 {
@@ -12,7 +11,7 @@ namespace LegalAssistant.Domain.Models
         public string Text { get; set; }
         public string CharRange { get; set; }
         public string SourceUrl { get; set; }
-        public Vector? Embedding { get; set; }
+        public EmbeddingVector? Embedding { get; set; }
         public DateTime CreatedAt { get; set; }
 
         public Document Document { get; set; }

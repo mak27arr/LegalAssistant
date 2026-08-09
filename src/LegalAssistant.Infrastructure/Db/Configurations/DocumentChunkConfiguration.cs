@@ -1,6 +1,8 @@
 using LegalAssistant.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Pgvector;
 
 namespace LegalAssistant.Infrastructure.Db.Configurations;
 
@@ -22,9 +24,14 @@ public sealed class DocumentChunkConfiguration : IEntityTypeConfiguration<Docume
         b.Property(x => x.CharRange).HasMaxLength(100).HasColumnName("char_range");
         b.Property(x => x.SourceUrl).HasMaxLength(2000).HasColumnName("source_url");
 
+        var embeddingConverter =
+            new ValueConverter<EmbeddingVector?, Vector?>(
+                v => v == null ? null : new Vector(v.Values.ToArray()),
+                v => v == null ? null : new EmbeddingVector(v.ToArray()));
         b.Property(x => x.Embedding)
             .HasColumnName("embedding")
-            .HasColumnType("vector(768)");
+            .HasColumnType("vector(768)")
+            .HasConversion(embeddingConverter);
 
         b.Property(x => x.CreatedAt).HasDefaultValueSql("now()").HasColumnName("created_at");
 

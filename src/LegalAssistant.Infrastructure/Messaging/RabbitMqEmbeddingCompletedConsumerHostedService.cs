@@ -1,11 +1,7 @@
-using System;
-using System.Text;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using LegalAssistant.Application.Common;
-using LegalAssistant.Infrastructure.Db;
 using LegalAssistant.Core.Correlation;
+using LegalAssistant.Domain.Models;
+using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -13,6 +9,11 @@ using Microsoft.Extensions.Logging;
 using Pgvector;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using System;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LegalAssistant.Infrastructure.Messaging;
 
@@ -116,7 +117,7 @@ public sealed class RabbitMqEmbeddingCompletedConsumerHostedService : Background
                 var chunk = await db.DocumentChunks.FirstOrDefaultAsync(c => c.Id == msg.ChunkId, stoppingToken);
                 if (chunk != null)
                 {
-                    chunk.Embedding = new Vector(msg.Vector);
+                    chunk.Embedding = new EmbeddingVector(msg.Vector);
                     await db.SaveChangesAsync(stoppingToken);
                     _logger.LogInformation("Embedding persisted for chunk");
                 }
