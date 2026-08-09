@@ -1,5 +1,6 @@
 using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Ask.Models;
+using LegalAssistant.Infrastructure.Ask.Models;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
 using Pgvector;
@@ -25,7 +26,7 @@ public sealed class ChunkSearchService : IChunkSearchService
         // Use pgvector operator directly for ordering: embedding <-> query
         // NOTE: score here is L2 distance (lower is better).
         var rows = await _db.Database
-            .SqlQuery<SearchRow>($@"
+            .SqlQuery<ChunkSearchProjection>($@"
                 SELECT dc.id AS Id,
                        dc.document_id AS DocumentId,
                        dc.chunk_index AS ChunkIndex,
@@ -44,15 +45,5 @@ public sealed class ChunkSearchService : IChunkSearchService
         return rows
             .Select(r => new AskChunkResult(r.Id, r.DocumentId, r.ChunkIndex, r.Text, r.SourceUrl, r.Score))
             .ToList();
-    }
-
-    private sealed class SearchRow
-    {
-        public Guid Id { get; set; }
-        public Guid DocumentId { get; set; }
-        public int ChunkIndex { get; set; }
-        public string Text { get; set; } = string.Empty;
-        public string? SourceUrl { get; set; }
-        public double Score { get; set; }
     }
 }
