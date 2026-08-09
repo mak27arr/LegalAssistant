@@ -26,15 +26,18 @@ public sealed class ChunkSearchService : IChunkSearchService
         // NOTE: score here is L2 distance (lower is better).
         var rows = await _db.Database
             .SqlQuery<SearchRow>($@"
-                SELECT id AS Id,
-                       document_id AS DocumentId,
-                       chunk_index AS ChunkIndex,
-                       text AS Text,
-                       source_url AS SourceUrl,
-                       (embedding <-> {qv})::double precision AS Score
-                FROM document_chunks
-                WHERE embedding IS NOT NULL
-                ORDER BY embedding <-> {qv}
+                SELECT dc.id AS Id,
+                       dc.document_id AS DocumentId,
+                       dc.chunk_index AS ChunkIndex,
+                       dc.text AS Text,
+                       dc.source_url AS SourceUrl,
+                       (dc.embedding <-> {qv})::double precision AS Score
+                FROM document_chunks dc
+                INNER JOIN documents d ON dc.document_id = d.id
+                WHERE dc.embedding IS NOT NULL 
+                  AND d.is_deleted = false 
+                  AND dc.chunking_run_id = d.active_chunking_run_id
+                ORDER BY dc.embedding <-> {qv}
                 LIMIT {topK}")
             .ToListAsync(cancellationToken);
 

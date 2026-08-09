@@ -21,6 +21,7 @@ using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Rag.Services;
 using LegalAssistant.Application.Rag;
 using LegalAssistant.Application.Common;
+using LegalAssistant.Core.Correlation;
 
 namespace LegalAssistant.Infrastructure.DependencyInjection;
 
@@ -78,9 +79,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ICorrelationContext, CorrelationContext>();
         services.AddSingleton<IClock, SystemClock>();
 
+        return services;
+    }
+
+    public static IServiceCollection AddInfrastructureConsumers(this IServiceCollection services)
+    {
         services.AddHostedService<RabbitMqEmbeddingCompletedConsumerHostedService>();
         services.AddHostedService<RabbitMqIngestConsumerHostedService>();
-
         return services;
     }
 }

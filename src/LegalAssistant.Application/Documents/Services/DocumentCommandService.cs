@@ -81,9 +81,27 @@ public sealed class DocumentCommandService : IDocumentCommandService
         doc.Title = command.Title ?? doc.Title;
         doc.Content = command.Content ?? doc.Content;
         doc.Metadata = command.Metadata != null ? JsonSerializer.Serialize(command.Metadata) : doc.Metadata;
-        doc.UpdatedAt = _clock.UtcNow;
+        
+        var now = _clock.UtcNow;
+        doc.UpdatedAt = now;
         _documents.Update(doc);
+
+        var payload = JsonSerializer.Serialize(new { DocumentId = doc.Id, Url = doc.Url });
+        var job = new JobRecord
+        {
+            Id = Guid.NewGuid(),
+            Type = "ingest",
+            Status = JobStatus.Queued,
+            Payload = payload,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        await _jobs.AddAsync(job, cancellationToken);
         await _uow.SaveChangesAsync(cancellationToken);
+
+        await _publisher.PublishAsync(job.Id, job.Payload, cancellationToken);
+
         return true;
     }
 

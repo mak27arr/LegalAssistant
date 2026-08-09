@@ -3,8 +3,8 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using LegalAssistant.Application.Common;
 using LegalAssistant.Application.Embeddings;
+using LegalAssistant.Core.Correlation;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -9,11 +9,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <ProjectReference Include="../LegalAssistant.Domain/LegalAssistant.Domain.csproj" />
     <ProjectReference Include="../LegalAssistant.Infrastructure/LegalAssistant.Infrastructure.csproj" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
     <!-- Logging configured via Microsoft.Extensions.Logging and FileLoggerProvider -->
     <!-- Serilog removed; using lightweight FileLoggerProvider + Console -->
   </ItemGroup>

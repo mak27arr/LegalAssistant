@@ -9,7 +9,7 @@ using LegalAssistant.Application.Jobs.Services;
 using LegalAssistant.Infrastructure.Messaging;
 using LegalAssistant.Infrastructure.Common;
 using LegalAssistant.Application.Rag.Services;
-using LegalAssistant.Application.Common;
+using LegalAssistant.Core.Correlation;
 
 namespace LegalAssistant.Workers.DependencyInjection;
 

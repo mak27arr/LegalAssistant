@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using LegalAssistant.Core.Correlation;
 
 namespace LegalAssistant.Logging.Middleware;
 
@@ -50,7 +51,7 @@ public sealed class RequestTimingMiddleware
                 sw.Stop();
             var elapsedMs = sw.Elapsed.TotalMilliseconds;
 
-            var corr = context.RequestServices.GetService(typeof(LegalAssistant.Application.Common.ICorrelationContext)) as LegalAssistant.Application.Common.ICorrelationContext;
+            var corr = context.RequestServices.GetService(typeof(ICorrelationContext)) as ICorrelationContext;
             var cid = corr?.CorrelationId ?? "-";
 
             _logger.LogInformation("Request {Method} {Path} completed in {Elapsed}ms. CorrelationId={CorrelationId}",

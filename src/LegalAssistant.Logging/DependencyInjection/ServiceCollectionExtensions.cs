@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using LegalAssistant.Application.Common;
-using LegalAssistant.Logging.Middleware;
 using LegalAssistant.Logging.Processing;
 using Serilog;
 using Serilog.Events;

@@ -1,4 +1,5 @@
 using LegalAssistant.Application.Common;
+using LegalAssistant.Core.Correlation;
 
 namespace LegalAssistant.Infrastructure.Common;
 

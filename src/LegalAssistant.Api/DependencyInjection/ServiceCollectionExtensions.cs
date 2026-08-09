@@ -1,4 +1,4 @@
-using LegalAssistant.Application.Common;
+using LegalAssistant.Core.Correlation;
 using LegalAssistant.Api.Common;
 
 namespace LegalAssistant.Api.DependencyInjection;

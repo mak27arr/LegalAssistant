@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using LegalAssistant.Application.Common;
+using LegalAssistant.Core.Correlation;
 
 namespace LegalAssistant.Api.Middleware;
 

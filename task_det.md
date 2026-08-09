@@ -1,25 +1,28 @@
-# Детальний план імплементації
+# Detailed Implementation Plan
 
-Мета: реалізувати RAG‑сервіс на основі `ASP.NET Core` з `Postgres + pgvector` і локальною/віддаленою LLM для юридичних запитів (MVP → production roadmap).
+**Goal:** implement an ASP.NET Core RAG service using PostgreSQL + pgvector and a local or remote LLM for legal queries, progressing from MVP to a production-ready roadmap.
 
-1) Архітектура компонентів
-- Backend: `ASP.NET Core Web API` (сервіси через DI).
-  - `DocumentService` — CRUD, кеш, парсинг.
-  - `EmbeddingService` — генерація/батчинг embedding-ів.
-  - `VectorDbLayer` — wrapper для pgvector/SQL, ANN search.
-  - `RagPipelineService` — retrieve → augment → prompt build.
-  - `LlmService` — адаптер для Ollama/GPT4All/провайдерів.
-  - `AdminService` — reindex, metrics, feedback.
+## 1. Component architecture
 
-2) API ендпоінти (OpenAPI/swagger)
-- `POST /ask` — body: `{ query, top_k?, filters? }` → response: `{ answer, sources[], score }`.
-- `POST /documents` — додати документ (url/file).
-- `GET/PUT/DELETE /documents/{id}` — метадані/контент (soft delete).
-- `POST /admin/reindex` — async реіндексація.
-- `GET /health` — DB, vector index, LLM.
-- `POST /feedback` — human feedback.
+- Backend: ASP.NET Core Web API, with services registered through dependency injection.
+  - `DocumentService` - CRUD, caching, and parsing.
+  - `EmbeddingService` - embedding generation and batching.
+  - `VectorDbLayer` - pgvector/SQL wrapper and approximate-nearest-neighbour search.
+  - `RagPipelineService` - retrieve, augment, and build prompts.
+  - `LlmService` - adapter for Ollama, GPT4All, and other providers.
+  - `AdminService` - reindexing, metrics, and feedback.
 
-3) DB schema (Postgres + pgvector)
+## 2. API endpoints (OpenAPI/Swagger)
+
+- `POST /ask` - body: `{ query, top_k?, filters? }`; response: `{ answer, sources[], score }`.
+- `POST /documents` - adds a document from a URL or file.
+- `GET/PUT/DELETE /documents/{id}` - reads, updates, or soft-deletes metadata and content.
+- `POST /admin/reindex` - starts asynchronous reindexing.
+- `GET /health` - checks the database, vector index, and LLM.
+- `POST /feedback` - records human feedback.
+
+## 3. Database schema (PostgreSQL + pgvector)
+
 - `documents`:
   - `id UUID PK`, `title text`, `url text`, `content text`, `metadata jsonb`, `created_at`, `updated_at`, `version int`, `is_deleted bool`.
 - `document_chunks`:
@@ -27,67 +30,80 @@
 - `embeddings`:
   - `id UUID PK`, `chunk_id FK`, `vector vector(<dim>)`, `model varchar`, `created_at`.
 
-Індекси: pgvector HNSW/IVF, збереження `dim` у міграції і планом реіндексації при зміні моделі.
+Indexes: pgvector HNSW or IVF. Store the embedding dimension in the migration and define a reindexing plan when the embedding model changes.
 
-4) Ingest pipeline
-- Підтримка: URL, PDF, HTML, raw text.
-- Кроки: fetch → extract (Tika/PDF lib/ocr) → normalize → chunking.
-- Chunking policy: ~1000 токенів (прибл. 750 chars) + overlap 200 токенів.
-- Зберігати metadata: `document_id`, `chunk_index`, `char_range`, `source_url`, `license`.
-- Асинхронно: POST /documents ставить job у чергу (BackgroundService).
+## 4. Ingestion pipeline
 
-5) Embeddings
-- MVP: `all-MiniLM-L6-v2` (швидко, економно). Конфіг для заміни моделі.
-- Batch processing, retry/backoff, rate-limit.
-- Cache embeddings у Redis за хешем контенту+модель.
+- Support URL, PDF, HTML, and raw text.
+- Steps: fetch -> extract (Tika, PDF library, or OCR) -> normalize -> chunk.
+- Chunking policy: approximately 1,000 tokens (about 750 characters) with 200-token overlap.
+- Store `document_id`, `chunk_index`, `char_range`, `source_url`, and `license` metadata.
+- Asynchronously process ingestion: `POST /documents` places a job on a queue for a `BackgroundService`.
 
-6) Vector search & RAG
-- Flow: query → embedding → ANN search top_k → fetch chunks → filter → assemble context.
-- Prompt template: system + numbered snippets з citation headers + user query.
-- Token budget: enforce (model_max - safety_margin).
-- Видача: LLM вертає answer і цитати (chunk ranges + source URLs).
+## 5. Embeddings
 
-7) LLM integration
-- Адаптер із timeout, retry, circuit-breaker, fallback.
-- Sanitize prompts (PII redaction опціонально).
+- MVP: `all-MiniLM-L6-v2`, chosen for speed and low cost; make the model configurable.
+- Use batch processing, retry/backoff, and rate limiting.
+- Cache embeddings in Redis by a content-and-model hash.
 
-8) Безпека
-- Auth: JWT або API key, RBAC для admin.
-- Secrets: Vault/Azure Key Vault.
-- Rate limiting, TLS, request size limits.
+## 6. Vector search and RAG
 
-9) Інфраструктура
-- Dev: Docker Compose (Postgres+pgvector, backend, mock LLM).
-- Prod: Kubernetes/Helm, HPA, nodeAffinity для GPU (за потреби).
-- CI: GitHub Actions — build, tests, migrations, image push.
+- Flow: query -> embedding -> ANN top-k search -> retrieve chunks -> filter -> assemble context.
+- Prompt template: system message, numbered snippets with citation headers, and the user query.
+- Enforce a token budget: `model_max - safety_margin`.
+- Return an LLM answer with citations containing chunk ranges and source URLs.
 
-10) Observability
-- Метрики: latency (API, embeddings, vector search, LLM), error rates, queue length.
-- Tracing: OpenTelemetry, correlation IDs.
-- Логи: Serilog структуровано, Prometheus + Grafana.
+## 7. LLM integration
 
-11) Тестування
-- Unit: xUnit + Moq.
-- Integration: testcontainers для Postgres+pgvector, mock LLM.
-- E2E: сценарії для `/ask` з seed даними.
-- Load tests: k6/Locust targeting vector search + LLM concurrency.
+- Implement an adapter with timeout, retry, circuit breaker, and fallback behaviour.
+- Sanitize prompts; optionally redact personally identifiable information.
 
-12) Дані та бекапи
-- Soft delete + retention policy, PII redaction pipeline.
-- Backups: регулярні дампи Postgres + знімки індексів.
+## 8. Security
 
-13) Операційні задачі
-- Reindex: incremental on change + scheduled full reindex (nightly).
-- Partial reindex endpoint.
-- Health checks: DB, sample query to vector index, LLM ping.
+- Use JWT or API keys; use RBAC for administrative operations.
+- Keep secrets in Vault or Azure Key Vault.
+- Apply rate limits, TLS, and request-size limits.
 
-14) MVP пріоритети
-1) Auth (API keys/JWT), `/ask`, `/documents` CRUD.
-2) Ingest: URL/PDF → chunk → embeddings (all-MiniLM) → store.
-3) Vector search + RAG з mock LLM (мінімізувати залежності від зовн. API).
-4) Logging + базові метрики.
-5) Reindex endpoint + background worker.
+## 9. Infrastructure
 
-Roadmap: додати prompt engineering, hallucination mitigation (fact-check), A/B testing моделей, automated backups, advanced monitoring.
+- Development: Docker Compose with PostgreSQL + pgvector, backend, and mock LLM.
+- Production: Kubernetes/Helm, HPA, and GPU node affinity when needed.
+- CI: GitHub Actions for builds, tests, migrations, and image publishing.
 
-Можу додатково згенерувати (за потреби): OpenAPI spec, SQL DDL міграції, Docker Compose dev файл, базовий Helm chart.
+## 10. Observability
+
+- Metrics: API, embedding, vector-search, and LLM latency; error rates; queue length.
+- Tracing: OpenTelemetry and correlation IDs.
+- Logs: structured Serilog logs, Prometheus, and Grafana.
+
+## 11. Testing
+
+- Unit tests: xUnit and Moq.
+- Integration tests: Testcontainers for PostgreSQL + pgvector and a mock LLM.
+- End-to-end tests: `/ask` scenarios with seeded data.
+- Load tests: k6 or Locust targeting vector-search and LLM concurrency.
+
+## 12. Data and backups
+
+- Soft deletion, retention policy, and a PII-redaction pipeline.
+- Regular PostgreSQL dumps and index snapshots.
+
+## 13. Operational tasks
+
+- Incremental reindexing on changes and scheduled full reindexing each night.
+- A partial-reindex endpoint.
+- Health checks for the database, a sample vector-index query, and an LLM ping.
+
+## 14. MVP priorities
+
+1. Authentication (API keys/JWT), `/ask`, and document CRUD.
+2. Ingestion: URL/PDF -> chunks -> `all-MiniLM` embeddings -> storage.
+3. Vector search and RAG with a mock LLM, minimizing reliance on external APIs.
+4. Logging and basic metrics.
+5. Reindex endpoint and background worker.
+
+## Roadmap
+
+Add prompt engineering, hallucination mitigation (fact checking), model A/B testing, automated backups, and advanced monitoring.
+
+Optional deliverables: an OpenAPI specification, SQL DDL migrations, a Docker Compose development file, and a basic Helm chart.

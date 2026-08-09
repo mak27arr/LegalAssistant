@@ -1,85 +1,66 @@
-1. Архітектура проєкту
-Backend: ASP.NET Core (Web API).
+# Legal Assistant - Architecture and MVP Requirements
 
-Сервіси:
+## 1. Project architecture
 
-Document Service — робота з базою законів/посилань.
+Backend: ASP.NET Core Web API.
 
-Embedding Service — генерація embeddings для документів.
+Services:
 
-Vector DB Layer — інтеграція з PostgreSQL + pgvector.
-
-RAG Pipeline Service — retrieval + augmentation + генерація відповіді.
-
-LLM Service — інтеграція з локальною моделлю (через Ollama, GPT4All або API).
+- **Document Service** - manages the database of laws and source links.
+- **Embedding Service** - generates embeddings for documents.
+- **Vector DB Layer** - integrates with PostgreSQL and pgvector.
+- **RAG Pipeline Service** - retrieves information, augments the prompt, and generates an answer.
+- **LLM Service** - integrates with a local model through Ollama, GPT4All, or an API.
 
 API endpoints:
 
-/ask — приймає питання користувача, повертає відповідь з джерелами.
+- `/ask` - accepts a user question and returns an answer with its sources.
+- `/documents` - CRUD operations for documents and links.
+- `/health` - checks system health.
 
-/documents — CRUD для документів/посилань.
+## 2. Database (PostgreSQL + pgvector)
 
-/health — перевірка стану системи.
+`Documents` table:
 
-2. База даних (Postgres + pgvector)
-Таблиця Documents:
+- `Id` (PK)
+- `Title` - name of the law or code
+- `Url` - link to an official government resource
+- `Content` - law text, when cached
+- `Embedding` - pgvector vector
+- `Metadata` - type, for example law, court decision, or commentary
 
-Id (PK)
+Indexes:
 
-Title (назва закону/кодексу)
+- HNSW or IVFFlat for fast embedding search.
 
-Url (посилання на державний ресурс)
+## 3. User-query workflow
 
-Content (текст закону, якщо кешується)
+1. The user submits a question to `/ask`.
+2. The Embedding Service generates an embedding for the question.
+3. The Vector DB Layer finds the closest documents.
+4. The Document Service loads the text from cache or from an official government resource.
+5. The RAG Pipeline Service builds a prompt from the question and retrieved documents.
+6. The LLM Service generates an answer.
+7. The answer is returned with links to its sources.
 
-Embedding (vector, pgvector)
+## 4. Local AI model
 
-Metadata (тип: закон, судове рішення, коментар)
+- Use Ollama or GPT4All as a server for a local model.
+- Suggested model: Mistral 7B or LLaMA 2 13B, balancing performance and quality.
+- Integrate through REST API or gRPC.
+- Generate embeddings separately with sentence-transformers or `all-MiniLM-L6-v2`.
 
-Індекси:
+## 5. Infrastructure
 
-HNSW або IVFFlat для швидкого пошуку по embeddings.
+- Docker for containerization: PostgreSQL + pgvector, backend, and LLM.
+- CI/CD: GitHub Actions or Azure DevOps.
+- Logging: Serilog and Kibana.
+- Monitoring: Prometheus and Grafana.
+- Testing: xUnit plus integration tests for the RAG pipeline.
 
-3. Workflow запиту користувача
-Користувач надсилає питання → /ask.
+## 6. MVP functionality
 
-Embedding Service генерує embedding для питання.
-
-Vector DB Layer шукає найближчі документи.
-
-Document Service підтягує текст (з кешу або з державного ресурсу).
-
-RAG Pipeline Service формує prompt: питання + витягнуті документи.
-
-LLM Service (локальна модель) генерує відповідь.
-
-Відповідь повертається з посиланнями на джерела.
-
-4. Локальна AI-модель
-Використати Ollama або GPT4All як сервер для локальної моделі.
-
-Модель: Mistral 7B або LLaMA 2 13B (баланс продуктивності та якості).
-
-Інтеграція через REST API або gRPC.
-
-Embeddings можна генерувати окремо (sentence-transformers або all-MiniLM-L6-v2).
-
-5. Інфраструктура
-Docker для контейнеризації (Postgres + pgvector, backend, LLM).
-
-CI/CD: GitHub Actions або Azure DevOps.
-
-Логування: Serilog + Kibana.
-
-Моніторинг: Prometheus + Grafana.
-
-Тестування: xUnit + інтеграційні тести для RAG pipeline.
-
-6. MVP-функціонал
-Запит → відповідь з цитатами.
-
-CRUD для документів/посилань.
-
-Кешування найчастіше використовуваних законів.
-
-Логування запитів і відповідей.
+- A question produces an answer with citations.
+- CRUD operations for documents and links.
+- Cache frequently used laws.
+- Log requests and answers.

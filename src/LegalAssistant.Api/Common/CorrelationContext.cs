@@ -1,4 +1,4 @@
-using LegalAssistant.Application.Common;
+using LegalAssistant.Core.Correlation;
 
 namespace LegalAssistant.Api.Common;
 

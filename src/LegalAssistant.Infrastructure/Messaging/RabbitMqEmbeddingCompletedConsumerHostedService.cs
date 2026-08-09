@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LegalAssistant.Application.Common;
 using LegalAssistant.Infrastructure.Db;
+using LegalAssistant.Core.Correlation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
