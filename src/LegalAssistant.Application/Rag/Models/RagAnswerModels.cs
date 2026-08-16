@@ -12,16 +12,26 @@ public sealed record RagAnswerSource(
 
 public sealed record RagAnswerResult(
     string Question,
+    int RequestedTopK,
     int TopK,
+    int UsedChunkCount,
     string Answer,
     IReadOnlyList<RagAnswerSource> Sources,
     string Prompt,
+    int PromptTokenBudget,
+    int PromptTokenEstimate,
+    bool WasTruncatedByBudget,
     bool IsGrounded,
     IReadOnlyList<int> CitationIds,
     IReadOnlyList<string> ValidationIssues);
 
 public sealed record RagPromptResult(
     string Question,
+    int RequestedTopK,
     int TopK,
+    int UsedChunkCount,
     IReadOnlyList<RagAnswerSource> Sources,
-    string Prompt);
+    string Prompt,
+    int PromptTokenBudget,
+    int PromptTokenEstimate,
+    bool WasTruncatedByBudget);

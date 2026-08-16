@@ -76,6 +76,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IChunkingRunService, ChunkingRunService>();
 
         services.AddSingleton<IRagPromptBuilder, DefaultRagPromptBuilder>();
+        services.AddSingleton<IRagQueryPolicyProvider, ConfigurationRagQueryPolicyProvider>();
         services.AddScoped<IRagPromptTemplateProvider, DbRagPromptTemplateProvider>();
 
         services.AddScoped<ICorrelationContext, CorrelationContext>();

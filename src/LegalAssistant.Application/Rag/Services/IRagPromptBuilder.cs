@@ -6,5 +6,11 @@ namespace LegalAssistant.Application.Rag.Services;
 
 public interface IRagPromptBuilder
 {
-    string Build(RagPromptTemplateDto template, string question, IReadOnlyList<AskChunkResult> chunks);
+    RagPromptBuildResult Build(
+        RagPromptTemplateDto template,
+        string question,
+        IReadOnlyList<AskChunkResult> chunks,
+        int requestedTopK,
+        int effectiveTopK,
+        RagQueryPolicy policy);
 }

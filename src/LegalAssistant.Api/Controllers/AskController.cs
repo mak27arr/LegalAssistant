@@ -23,10 +23,8 @@ public sealed class AskController : ControllerBase
 
         return Ok(new AskResponse(
             result.Question,
-            result.TopK,
             result.Answer,
             result.Sources.Select(c => new AskChunkDto(c.ChunkId, c.DocumentId, c.ChunkIndex, c.Text, c.SourceUrl, c.Score)).ToList(),
-            result.Prompt,
             result.IsGrounded,
             result.CitationIds,
             result.ValidationIssues));
@@ -36,7 +34,11 @@ public sealed class AskController : ControllerBase
     public async Task<ActionResult<AskPromptResponse>> Prompt([FromBody] AskRequest req, CancellationToken cancellationToken)
     {
         var result = await _rag.BuildPromptAsync(new RagAnswerQuery(req.Question, req.TopK ?? 5), cancellationToken);
-        return Ok(new AskPromptResponse(result.Question, result.TopK, result.Prompt, result.Sources
+        return Ok(new AskPromptResponse(
+            result.Question,
+            result.TopK,
+            result.Prompt,
+            result.Sources
             .Select(c => new AskChunkDto(c.ChunkId, c.DocumentId, c.ChunkIndex, c.Text, c.SourceUrl, c.Score))
             .ToList()));
     }
