@@ -26,7 +26,10 @@ public sealed class AskController : ControllerBase
             result.TopK,
             result.Answer,
             result.Sources.Select(c => new AskChunkDto(c.ChunkId, c.DocumentId, c.ChunkIndex, c.Text, c.SourceUrl, c.Score)).ToList(),
-            result.Prompt));
+            result.Prompt,
+            result.IsGrounded,
+            result.CitationIds,
+            result.ValidationIssues));
     }
 
     [HttpPost("prompt")]

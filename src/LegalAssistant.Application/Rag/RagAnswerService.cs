@@ -15,20 +15,42 @@ public sealed class RagAnswerService : IRagAnswerService
     private readonly ILlmClient _llm;
     private readonly IRagPromptTemplateProvider _promptTemplate;
     private readonly IRagPromptBuilder _promptBuilder;
+    private readonly IRagAnswerValidator _validator;
 
-    public RagAnswerService(IAskService ask, ILlmClient llm, IRagPromptTemplateProvider promptTemplate, IRagPromptBuilder promptBuilder)
+    public RagAnswerService(
+        IAskService ask,
+        ILlmClient llm,
+        IRagPromptTemplateProvider promptTemplate,
+        IRagPromptBuilder promptBuilder,
+        IRagAnswerValidator validator)
     {
         _ask = ask;
         _llm = llm;
         _promptTemplate = promptTemplate;
         _promptBuilder = promptBuilder;
+        _validator = validator;
     }
 
     public async Task<RagAnswerResult> AnswerAsync(RagAnswerQuery query, CancellationToken cancellationToken = default)
     {
         var built = await BuildPromptAsync(query, cancellationToken);
         var answer = await _llm.GenerateAsync(built.Prompt, cancellationToken);
-        return new RagAnswerResult(built.Question, built.TopK, answer, built.Sources, built.Prompt);
+        var validation = _validator.Validate(answer, built.Sources);
+
+        if (!validation.IsValid)
+        {
+            answer = BuildRefusalMessage();
+        }
+
+        return new RagAnswerResult(
+            built.Question,
+            built.TopK,
+            answer,
+            built.Sources,
+            built.Prompt,
+            validation.IsValid,
+            validation.CitationIds,
+            validation.Issues);
     }
 
     public async Task<RagPromptResult> BuildPromptAsync(RagAnswerQuery query, CancellationToken cancellationToken = default)
@@ -47,4 +69,7 @@ public sealed class RagAnswerService : IRagAnswerService
 
         return new RagPromptResult(query.Question, topK, sources, prompt);
     }
+
+    private static string BuildRefusalMessage()
+        => "I could not produce a grounded answer from the provided sources. Please narrow the question or provide more relevant documents.";
 }

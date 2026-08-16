@@ -15,7 +15,10 @@ public sealed record RagAnswerResult(
     int TopK,
     string Answer,
     IReadOnlyList<RagAnswerSource> Sources,
-    string Prompt);
+    string Prompt,
+    bool IsGrounded,
+    IReadOnlyList<int> CitationIds,
+    IReadOnlyList<string> ValidationIssues);
 
 public sealed record RagPromptResult(
     string Question,

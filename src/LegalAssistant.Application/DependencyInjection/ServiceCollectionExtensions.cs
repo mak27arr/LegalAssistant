@@ -17,6 +17,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDocumentCommandService, DocumentCommandService>();
 
         services.AddSingleton<IRagPromptBuilder, DefaultRagPromptBuilder>();
+        services.AddSingleton<IRagAnswerValidator, DefaultRagAnswerValidator>();
 
         return services;
     }
