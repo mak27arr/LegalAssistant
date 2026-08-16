@@ -10,3 +10,6 @@
 - Mock embedding generation MUST be used only for development/testing.
 - Model name, dimensions and provider configuration MUST come from configuration.
 - Embedding failures MUST be observable and retryable where appropriate.
+- Keep `Program.cs` minimal.
+- Do not place endpoint bodies or long route handlers in `Program.cs`.
+- Put endpoints in separate files under `ServiceEndpoints/` or `Endpoints/` and expose them through small extension methods.

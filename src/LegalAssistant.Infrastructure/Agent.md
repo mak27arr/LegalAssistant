@@ -12,3 +12,6 @@
   unless explicitly required by the abstraction.
 - Database mappings/configurations MUST remain in Infrastructure.
 - External-service configuration MUST remain in Infrastructure.
+- Keep entrypoint files minimal when they exist.
+- Do not place long startup routines in `Program.cs`.
+- Put HTTP endpoint-like behavior into dedicated endpoint files instead of the entrypoint.

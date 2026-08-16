@@ -10,3 +10,6 @@
 - Worker MUST propagate CancellationToken.
 - Worker MUST handle message acknowledgement/retry/dead-letter concerns
   at the infrastructure/adapter boundary.
+- Keep entrypoint files minimal.
+- Do not place large startup routines in `Program.cs`.
+- Put any route-like or startup-specific behavior into dedicated helper or endpoint files instead of the entrypoint.
