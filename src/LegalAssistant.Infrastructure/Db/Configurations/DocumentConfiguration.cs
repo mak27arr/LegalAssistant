@@ -13,10 +13,10 @@ public sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
 
         b.Property(x => x.Id).HasColumnName("id");
 
-        b.Property(x => x.Title).HasMaxLength(1000).HasColumnName("title");
-        b.Property(x => x.Url).HasMaxLength(2000).HasColumnName("url");
-        b.Property(x => x.Content).HasColumnName("content");
-        b.Property(x => x.Metadata).HasColumnName("metadata");
+        b.Property(x => x.Title).HasMaxLength(1000).HasColumnName("title").IsRequired();
+        b.Property(x => x.Url).HasMaxLength(2000).HasColumnName("url").IsRequired();
+        b.Property(x => x.Content).HasColumnName("content").IsRequired();
+        b.Property(x => x.Metadata).HasColumnName("metadata").IsRequired();
         b.Property(x => x.ActiveChunkingRunId).HasColumnName("active_chunking_run_id");
 
         b.Property(x => x.Version).HasDefaultValue(1).HasColumnName("version");

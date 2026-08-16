@@ -1,4 +1,5 @@
 using LegalAssistant.Logging.DependencyInjection;
+using LegalAssistant.Embeddings.ServiceEndpoints;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -80,6 +81,7 @@ app.MapPost("/embed", async (HttpContext http, EmbedRequest req, LegalAssistant.
     logger.LogInformation("Embedding response generated. Dimensions={Dimensions}", vector.Length);
     return Results.Ok(vector);
 });
+app.MapHealthEndpoint();
 
 app.Run();
 

@@ -8,12 +8,12 @@ namespace LegalAssistant.Domain.Models
         public Guid DocumentId { get; set; }
         public Guid? ChunkingRunId { get; set; }
         public int ChunkIndex { get; set; }
-        public string Text { get; set; }
-        public string CharRange { get; set; }
-        public string SourceUrl { get; set; }
+        public required string Text { get; set; }
+        public required string CharRange { get; set; }
+        public required string SourceUrl { get; set; }
         public EmbeddingVector? Embedding { get; set; }
         public DateTime CreatedAt { get; set; }
 
-        public Document Document { get; set; }
+        public Document? Document { get; set; }
     }
 }

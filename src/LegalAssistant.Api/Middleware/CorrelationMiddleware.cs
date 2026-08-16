@@ -21,7 +21,8 @@ public sealed class CorrelationMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!context.Request.Headers.TryGetValue("X-Correlation-Id", out var correlationId) || string.IsNullOrWhiteSpace(correlationId))
+        var correlationId = context.Request.Headers["X-Correlation-Id"].ToString();
+        if (string.IsNullOrWhiteSpace(correlationId))
         {
             correlationId = Guid.NewGuid().ToString("N");
             context.Request.Headers["X-Correlation-Id"] = correlationId;
@@ -34,7 +35,9 @@ public sealed class CorrelationMiddleware
             corr.CorrelationId = correlationId;
         }
 
-        var scopeCorrelationId = corr?.CorrelationId ?? correlationId;
+        var scopeCorrelationId = string.IsNullOrWhiteSpace(corr?.CorrelationId)
+            ? correlationId
+            : corr.CorrelationId;
         context.Response.Headers["X-Correlation-Id"] = scopeCorrelationId;
 
         using (_logger.BeginScope(new Dictionary<string, object> { ["correlationId"] = scopeCorrelationId }))

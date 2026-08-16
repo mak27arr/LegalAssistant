@@ -46,7 +46,7 @@ public sealed class DocumentCommandService : IDocumentCommandService
             Id = Guid.NewGuid(),
             Title = command.Title,
             Url = command.Url,
-            Content = command.Content,
+            Content = command.Content ?? string.Empty,
             Metadata = JsonSerializer.Serialize(command.Metadata),
             CreatedAt = now,
             UpdatedAt = now
@@ -81,6 +81,7 @@ public sealed class DocumentCommandService : IDocumentCommandService
         doc.Title = command.Title ?? doc.Title;
         doc.Content = command.Content ?? doc.Content;
         doc.Metadata = command.Metadata != null ? JsonSerializer.Serialize(command.Metadata) : doc.Metadata;
+        doc.Version += 1;
         
         var now = _clock.UtcNow;
         doc.UpdatedAt = now;

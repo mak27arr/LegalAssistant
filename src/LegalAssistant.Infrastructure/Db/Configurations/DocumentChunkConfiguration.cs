@@ -20,9 +20,9 @@ public sealed class DocumentChunkConfiguration : IEntityTypeConfiguration<Docume
             .IsRequired(false);
         b.Property(x => x.ChunkIndex).HasColumnName("chunk_index");
 
-        b.Property(x => x.Text).HasColumnName("text");
-        b.Property(x => x.CharRange).HasMaxLength(100).HasColumnName("char_range");
-        b.Property(x => x.SourceUrl).HasMaxLength(2000).HasColumnName("source_url");
+        b.Property(x => x.Text).HasColumnName("text").IsRequired();
+        b.Property(x => x.CharRange).HasMaxLength(100).HasColumnName("char_range").IsRequired();
+        b.Property(x => x.SourceUrl).HasMaxLength(2000).HasColumnName("source_url").IsRequired();
 
         var embeddingConverter =
             new ValueConverter<EmbeddingVector?, Vector?>(

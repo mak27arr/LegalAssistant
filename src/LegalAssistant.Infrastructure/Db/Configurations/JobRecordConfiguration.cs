@@ -13,9 +13,9 @@ public sealed class JobRecordConfiguration : IEntityTypeConfiguration<JobRecord>
 
         b.Property(x => x.Id).HasColumnName("id");
 
-        b.Property(x => x.Type).HasMaxLength(100).HasColumnName("type");
+        b.Property(x => x.Type).HasMaxLength(100).HasColumnName("type").IsRequired();
         b.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).HasColumnName("status");
-        b.Property(x => x.Payload).HasColumnName("payload");
+        b.Property(x => x.Payload).HasColumnName("payload").IsRequired();
         b.Property(x => x.Result).HasColumnName("result");
 
         b.Property(x => x.CreatedAt).HasDefaultValueSql("now()").HasColumnName("created_at");

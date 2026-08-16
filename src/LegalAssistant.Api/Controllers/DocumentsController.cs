@@ -30,7 +30,7 @@ public sealed class DocumentsController : ControllerBase
     {
         var doc = await _documents.GetByIdWithChunksAsync(id, cancellationToken);
         if (doc == null) return NotFound();
-        return Ok(new DocumentDto(doc.Id, doc.Title, doc.Url, doc.Content, doc.Metadata));
+        return Ok(new DocumentDto(doc.Id, doc.Title, doc.Url, doc.Content, doc.Metadata, doc.Version));
     }
 
     [HttpPut("{id}")]

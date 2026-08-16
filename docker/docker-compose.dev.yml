@@ -1,0 +1,100 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  minio:
+    ports:
+      - "9000:9000"
+
+  ollama:
+    ports:
+      - "11434:11434"
+
+  ollama-init:
+    image: ollama/ollama:0.32.5
+    depends_on:
+      - ollama
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_EMBEDDINGS_MODEL: ${OLLAMA_EMBEDDINGS_MODEL:-nomic-embed-text}
+      OLLAMA_LLM_MODEL: ${OLLAMA_LLM_MODEL:-llama3:8b}
+    volumes:
+      - ollama:/root/.ollama
+      - ./ollama-init.sh:/ollama-init.sh:ro
+    entrypoint: ["/bin/sh", "/ollama-init.sh"]
+
+  embeddings:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      LOG_PATH: /var/log/myapp/embeddings.log
+    ports:
+      - "8080:80"
+    depends_on:
+      - ollama-init
+    volumes:
+      - ./logs:/var/log/myapp
+
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      LOG_PATH: /var/log/myapp/api.log
+    ports:
+      - "5000:80"
+    volumes:
+      - ./logs:/var/log/myapp
+
+  worker:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      LOG_PATH: /var/log/myapp/workers.log
+    volumes:
+      - ./logs:/var/log/myapp
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.10.3
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.10.3
+    user: root
+    volumes:
+      - ./filebeat:/tmp/filebeat:ro
+      - ./logs:/var/log/myapp:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - cp /tmp/filebeat/filebeat.yml /usr/share/filebeat/filebeat.yml && /usr/local/bin/docker-entrypoint -e
+    depends_on:
+      - elasticsearch
+
+volumes:
+  esdata:
