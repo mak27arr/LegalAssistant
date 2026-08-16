@@ -174,6 +174,12 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Embedding")
+                        .HasDatabaseName("ix_document_chunks_embedding_hnsw")
+                        .HasMethod("hnsw")
+                        .HasOperators("vector_l2_ops")
+                        .HasFilter("\"embedding\" IS NOT NULL");
+
                     b.HasIndex("ChunkingRunId");
 
                     b.HasIndex("DocumentId");

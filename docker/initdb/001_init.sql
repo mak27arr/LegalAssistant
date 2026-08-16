@@ -23,24 +23,14 @@
 --   text text,
 --   char_range text,
 --   source_url text,
+--   embedding vector(768),
 --   created_at timestamptz DEFAULT now()
 -- );
 
--- embeddings table uses vector type, developer must set dim appropriately
--- CREATE TABLE IF NOT EXISTS embeddings (
---   id uuid PRIMARY KEY,
---   chunk_id uuid REFERENCES document_chunks(id) ON DELETE CASCADE,
---   vector vector(384),
---   model varchar,
---   created_at timestamptz DEFAULT now()
+-- ANN index for semantic search on the real table used by the app.
+-- CREATE INDEX IF NOT EXISTS ix_document_chunks_embedding_hnsw
+--   ON document_chunks
+--   USING hnsw (embedding vector_l2_ops)
+--   WHERE embedding IS NOT NULL;
 -- );
 CREATE EXTENSION IF NOT EXISTS vector;
-
--- embeddings table uses vector type, developer must set dim appropriately
--- CREATE TABLE IF NOT EXISTS embeddings (
---   id uuid PRIMARY KEY,
---   chunk_id uuid REFERENCES document_chunks(id) ON DELETE CASCADE,
---   vector vector(384),
---   model varchar,
---   created_at timestamptz DEFAULT now()
--- );

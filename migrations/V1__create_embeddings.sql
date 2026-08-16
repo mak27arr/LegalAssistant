@@ -1,14 +1,8 @@
--- Migration: create embeddings table with pgvector column
--- Note: adjust vector dimension to match chosen embedding model (e.g., 384 for all-MiniLM-L6-v2)
+-- Legacy compatibility migration.
+-- The application stores vectors on document_chunks.embedding (vector(768)),
+-- not in a separate embeddings table.
 
-CREATE TABLE IF NOT EXISTS embeddings (
-  id uuid PRIMARY KEY,
-  chunk_id uuid REFERENCES document_chunks(id) ON DELETE CASCADE,
-  vector vector(384),
-  model varchar,
-  created_at timestamptz DEFAULT now()
-);
-
--- Index for ANN search using ivfflat/hnsw can be created after populating the table
--- Example (pgvector HNSW):
--- SELECT ivfflat_create_index('embeddings', 'vector');
+CREATE INDEX IF NOT EXISTS ix_document_chunks_embedding_hnsw
+  ON document_chunks
+  USING hnsw (embedding vector_l2_ops)
+  WHERE embedding IS NOT NULL;

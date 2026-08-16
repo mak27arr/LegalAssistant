@@ -2,6 +2,7 @@ using LegalAssistant.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
 
 namespace LegalAssistant.Infrastructure.Db.Configurations;
@@ -32,6 +33,12 @@ public sealed class DocumentChunkConfiguration : IEntityTypeConfiguration<Docume
             .HasColumnName("embedding")
             .HasColumnType("vector(768)")
             .HasConversion(embeddingConverter);
+
+        b.HasIndex(x => x.Embedding)
+            .HasDatabaseName("ix_document_chunks_embedding_hnsw")
+            .HasMethod("hnsw")
+            .HasOperators("vector_l2_ops")
+            .HasFilter("\"embedding\" IS NOT NULL");
 
         b.Property(x => x.CreatedAt).HasDefaultValueSql("now()").HasColumnName("created_at");
 
