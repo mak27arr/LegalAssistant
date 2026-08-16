@@ -1,8 +1,8 @@
 using LegalAssistant.Logging.DependencyInjection;
+using LegalAssistant.Infrastructure.Health;
 using LegalAssistant.Embeddings.ServiceEndpoints;
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<LegalAssistant.Embeddings.Messaging.RabbitMqOptions>(sp =>
@@ -42,47 +42,25 @@ builder.Services.AddSingleton<LegalAssistant.Embeddings.Services.IEmbeddingGener
 });
 
 builder.Services.AddHostedService<LegalAssistant.Embeddings.Messaging.EmbeddingQueueWorker>();
+builder.Services.AddEmbeddingsReadinessHealthChecks(builder.Configuration);
 
-// Centralized logging registration for container (file JSON logs for sidecar/Filebeat)
-// Centralized logging registration for container (file JSON logs for sidecar/Filebeat)
 builder.Services.AddCentralizedLogging(builder.Configuration, "embeddings");
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Request timing middleware - can be toggled via Logging:RequestTiming:Enabled
 var enableRequestTiming = builder.Configuration.GetValue<bool?>("Logging:RequestTiming:Enabled") ?? true;
 if (enableRequestTiming)
 {
     app.UseMiddleware<LegalAssistant.Logging.Middleware.RequestTimingMiddleware>();
 }
 
-app.MapPost("/embed", async (HttpContext http, EmbedRequest req, LegalAssistant.Embeddings.Services.IEmbeddingGenerator generator, ILoggerFactory loggerFactory, CancellationToken ct) =>
-{
-    var correlationId = http.Request.Headers["X-Correlation-Id"].ToString();
-    if (string.IsNullOrWhiteSpace(correlationId))
-        correlationId = Guid.NewGuid().ToString("N");
-
-    http.Response.Headers["X-Correlation-Id"] = correlationId;
-    var logger = loggerFactory.CreateLogger("Embed");
-    using var _ = logger.BeginScope(new System.Collections.Generic.Dictionary<string, object> { ["correlationId"] = correlationId });
-
-    if (string.IsNullOrWhiteSpace(req.Text))
-        return Results.BadRequest("Text is required");
-
-    logger.LogInformation("Embedding request received");
-    var vector = await generator.GenerateAsync(req.Text, ct);
-    logger.LogInformation("Embedding response generated. Dimensions={Dimensions}", vector.Length);
-    return Results.Ok(vector);
-});
+app.MapEmbedEndpoint();
 app.MapHealthEndpoint();
 
 app.Run();
-
-public sealed record EmbedRequest(string Text);

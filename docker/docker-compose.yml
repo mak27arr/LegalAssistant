@@ -81,7 +81,7 @@ services:
       ollama:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost/health >/dev/null"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost/health/ready >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -107,7 +107,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost/health >/dev/null"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost/health/ready >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using LegalAssistant.Application.Chunking.Services;
 using LegalAssistant.Infrastructure.Chunking;
 using LegalAssistant.Infrastructure.Db;
+using LegalAssistant.Infrastructure.Documents;
 using LegalAssistant.Application.Documents.Services;
 using LegalAssistant.Application.Jobs.Services;
 using LegalAssistant.Infrastructure.Messaging;
@@ -28,6 +29,8 @@ public static class ServiceCollectionExtensions
         }
 
         services.AddHttpClient();
+        services.AddSingleton<IHtmlToTextConverter, StructuredHtmlToTextConverter>();
+        services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>();
         services.AddSingleton<IDocumentIngestJobPublisher, RabbitMqDocumentIngestJobPublisher>();
 
         services.AddScoped<IIngestJobProcessor, IngestJobProcessor>();

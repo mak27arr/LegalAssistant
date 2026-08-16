@@ -1,5 +1,5 @@
-using LegalAssistant.Embeddings.Messaging;
-using RabbitMQ.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace LegalAssistant.Embeddings.ServiceEndpoints;
 
@@ -7,43 +7,18 @@ public static class HealthEndpoint
 {
     public static WebApplication MapHealthEndpoint(this WebApplication app)
     {
-        app.MapGet("/health", async (RabbitMqOptions options, IConfiguration config, CancellationToken ct) =>
+        var readyOptions = new HealthCheckOptions
         {
-            try
-            {
-                var factory = new ConnectionFactory
-                {
-                    HostName = options.Host,
-                    Port = options.Port,
-                    UserName = options.User,
-                    Password = options.Pass,
-                    AutomaticRecoveryEnabled = false
-                };
+            Predicate = registration => registration.Tags.Contains("ready")
+        };
 
-                using var connection = factory.CreateConnection();
-                using var channel = connection.CreateModel();
-            }
-            catch
-            {
-                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-            }
-
-            var ollamaBase = config["Ollama:BaseUrl"] ?? Environment.GetEnvironmentVariable("OLLAMA_BASEURL") ?? "http://ollama:11434";
-            using var http = new HttpClient { BaseAddress = new Uri(ollamaBase), Timeout = TimeSpan.FromSeconds(2) };
-
-            try
-            {
-                using var response = await http.GetAsync("/api/version", ct);
-                if (!response.IsSuccessStatusCode)
-                    return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-            }
-            catch
-            {
-                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-            }
-
-            return Results.Ok(new { status = "ok" });
+        app.MapHealthChecks("/health/live", new HealthCheckOptions
+        {
+            Predicate = _ => false
         });
+
+        app.MapHealthChecks("/health/ready", readyOptions);
+        app.MapHealthChecks("/health", readyOptions);
 
         return app;
     }

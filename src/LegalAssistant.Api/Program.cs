@@ -2,6 +2,7 @@ using LegalAssistant.Api.DependencyInjection;
 using LegalAssistant.Application.Common;
 using LegalAssistant.Application.DependencyInjection;
 using LegalAssistant.Infrastructure.DependencyInjection;
+using LegalAssistant.Infrastructure.Health;
 using LegalAssistant.Api.ServiceEndpoints;
 using LegalAssistant.Logging.DependencyInjection;
 
@@ -15,6 +16,7 @@ builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApplicationServices();
 builder.Services.AddCentralizedLogging(builder.Configuration, "api");
 builder.Services.AddApiInfrastructure(builder.Configuration);
+builder.Services.AddApiReadinessHealthChecks();
 
 var app = builder.Build();
 

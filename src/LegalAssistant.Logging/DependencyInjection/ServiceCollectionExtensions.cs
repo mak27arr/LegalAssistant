@@ -14,7 +14,6 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IProcessingTimer, ProcessingTimer>();
 
-        // Determine service name: parameter, configuration key, or environment variable
         var resolvedServiceName = serviceName
             ?? configuration["ServiceName"]
             ?? Environment.GetEnvironmentVariable("SERVICE_NAME");
@@ -24,7 +23,6 @@ public static class ServiceCollectionExtensions
                    ?? configuration["Logging:Path"]
                    ?? defaultFile;
 
-        // Configure Serilog for structured JSON logging to file (Sidecar pattern)
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
             .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)

@@ -41,6 +41,8 @@ public static class InfrastructureServiceCollectionExtensions
         }
 
         services.AddHttpClient();
+        services.AddSingleton<IHtmlToTextConverter, StructuredHtmlToTextConverter>();
+        services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>();
 
         // Ask embeddings/chunk search client implemented in Infrastructure
         services.AddScoped<IChunkSearchService, ChunkSearchService>();
