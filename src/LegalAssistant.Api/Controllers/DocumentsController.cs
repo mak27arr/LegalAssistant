@@ -10,11 +10,16 @@ namespace LegalAssistant.Api.Controllers;
 public sealed class DocumentsController : ControllerBase
 {
     private readonly IDocumentCommandService _commands;
+    private readonly IDocumentStatsQueryService _stats;
     private readonly LegalAssistant.Application.Documents.IDocumentRepository _documents;
 
-    public DocumentsController(IDocumentCommandService commands, LegalAssistant.Application.Documents.IDocumentRepository documents)
+    public DocumentsController(
+        IDocumentCommandService commands,
+        IDocumentStatsQueryService stats,
+        LegalAssistant.Application.Documents.IDocumentRepository documents)
     {
         _commands = commands;
+        _stats = stats;
         _documents = documents;
     }
 
@@ -31,6 +36,18 @@ public sealed class DocumentsController : ControllerBase
         var doc = await _documents.GetByIdWithChunksAsync(id, cancellationToken);
         if (doc == null) return NotFound();
         return Ok(new DocumentDto(doc.Id, doc.Title, doc.Url, doc.Content, doc.Metadata, doc.Version));
+    }
+
+    [HttpGet("stats")]
+    public async Task<ActionResult<DocumentStatsDto>> GetStats(CancellationToken cancellationToken)
+    {
+        var stats = await _stats.GetStatsAsync(cancellationToken);
+        return Ok(new DocumentStatsDto(
+            stats.TotalDocuments,
+            stats.QueuedJobs,
+            stats.InProgressJobs,
+            stats.CompletedJobs,
+            stats.FailedJobs));
     }
 
     [HttpPut("{id}")]

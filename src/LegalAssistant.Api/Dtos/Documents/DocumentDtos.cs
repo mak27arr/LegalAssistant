@@ -5,3 +5,10 @@ public sealed record CreateDocumentRequest(string Title, string Url, string Cont
 public sealed record UpdateDocumentRequest(string Title, string Content, object Metadata);
 
 public sealed record DocumentDto(Guid Id, string Title, string Url, string Content, string Metadata, int Version);
+
+public sealed record DocumentStatsDto(
+    int TotalDocuments,
+    int QueuedJobs,
+    int InProgressJobs,
+    int CompletedJobs,
+    int FailedJobs);

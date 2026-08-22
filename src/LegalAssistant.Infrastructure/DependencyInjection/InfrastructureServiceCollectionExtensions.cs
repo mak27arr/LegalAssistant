@@ -72,6 +72,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IDocumentRepository, EfDocumentRepository>();
+        services.AddScoped<IDocumentStatsQueryService, DocumentStatsQueryService>();
         services.AddScoped<IJobRepository, EfJobRepository>();
         services.AddScoped<IJobQueue, EfJobQueue>();
         services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
