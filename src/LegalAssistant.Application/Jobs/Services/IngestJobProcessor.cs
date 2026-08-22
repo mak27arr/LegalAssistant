@@ -45,13 +45,13 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
 
     public async Task ProcessAsync(Guid jobId, CancellationToken cancellationToken = default)
     {
+        if (!await _jobs.TryMarkInProgressAsync(jobId, cancellationToken))
+            return;
+
         var job = await RequireJobAsync(jobId, cancellationToken);
 
         try
         {
-            job.Status = JobStatus.InProgress;
-            await _uow.SaveChangesAsync(cancellationToken);
-
             var payload = RequirePayload(job.Payload);
             var doc = await RequireDocumentAsync(payload.DocumentId, cancellationToken);
 

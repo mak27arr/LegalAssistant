@@ -3,7 +3,7 @@ using LegalAssistant.Application.Ask.Models;
 using LegalAssistant.Infrastructure.Ask.Models;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
-using Pgvector;
+using System.Globalization;
 
 namespace LegalAssistant.Infrastructure.Ask;
 
@@ -21,7 +21,7 @@ public sealed class ChunkSearchService : IChunkSearchService
         if (queryEmbedding == null || queryEmbedding.Length == 0)
             return Array.Empty<AskChunkResult>();
 
-        var qv = new Vector(queryEmbedding);
+        var qv = ToVectorLiteral(queryEmbedding);
 
         // Use pgvector operator directly for ordering: embedding <-> query
         // NOTE: score here is L2 distance (lower is better).
@@ -32,13 +32,13 @@ public sealed class ChunkSearchService : IChunkSearchService
                        dc.chunk_index AS ChunkIndex,
                        dc.text AS Text,
                        dc.source_url AS SourceUrl,
-                       (dc.embedding <-> {qv})::double precision AS Score
+                       (dc.embedding <-> CAST({qv} AS vector(768)))::double precision AS Score
                 FROM document_chunks dc
                 INNER JOIN documents d ON dc.document_id = d.id
                 WHERE dc.embedding IS NOT NULL 
                   AND d.is_deleted = false 
                   AND dc.chunking_run_id = d.active_chunking_run_id
-                ORDER BY dc.embedding <-> {qv}
+                ORDER BY dc.embedding <-> CAST({qv} AS vector(768))
                 LIMIT {topK}")
             .ToListAsync(cancellationToken);
 
@@ -46,4 +46,7 @@ public sealed class ChunkSearchService : IChunkSearchService
             .Select(r => new AskChunkResult(r.Id, r.DocumentId, r.ChunkIndex, r.Text, r.SourceUrl, r.Score))
             .ToList();
     }
+
+    private static string ToVectorLiteral(float[] values)
+        => "[" + string.Join(",", values.Select(v => v.ToString(CultureInfo.InvariantCulture))) + "]";
 }

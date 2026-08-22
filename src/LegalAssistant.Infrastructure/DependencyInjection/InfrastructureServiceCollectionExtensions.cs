@@ -17,6 +17,7 @@ using LegalAssistant.Application.Documents.Services;
 using LegalAssistant.Application.Persistence;
 using LegalAssistant.Application.Documents;
 using LegalAssistant.Application.Jobs;
+using LegalAssistant.Application.Messaging;
 using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Rag.Services;
 using LegalAssistant.Application.Rag;
@@ -42,6 +43,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddHttpClient();
         services.AddSingleton<IHtmlToTextConverter, StructuredHtmlToTextConverter>();
+        services.Configure<DocumentFetchOptions>(configuration.GetSection("Documents:Fetch"));
+        services.AddSingleton<IDocumentUrlValidator, DocumentUrlValidator>();
         services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>();
 
         // Ask embeddings/chunk search client implemented in Infrastructure
@@ -60,6 +63,7 @@ public static class InfrastructureServiceCollectionExtensions
         });
 
         services.AddSingleton<IDocumentIngestJobPublisher, RabbitMqDocumentIngestJobPublisher>();
+        services.AddScoped<IMessageOutboxWriter, EfMessageOutboxWriter>();
 
         services.AddSingleton<IChunkingStrategySelector, DefaultChunkingStrategySelector>();
         services.AddSingleton<IStrategyCandidate, ArticleCandidate>();

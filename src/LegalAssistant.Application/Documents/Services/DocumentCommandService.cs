@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LegalAssistant.Application.Common;
 using LegalAssistant.Application.Documents.Models;
+using LegalAssistant.Application.Messaging;
 using LegalAssistant.Application.Jobs;
 using LegalAssistant.Application.Persistence;
 using LegalAssistant.Domain.Models;
@@ -14,21 +15,21 @@ public sealed class DocumentCommandService : IDocumentCommandService
 {
     private readonly IDocumentRepository _documents;
     private readonly IJobRepository _jobs;
+    private readonly IMessageOutboxWriter _outbox;
     private readonly IUnitOfWork _uow;
-    private readonly IDocumentIngestJobPublisher _publisher;
     private readonly IClock _clock;
 
     public DocumentCommandService(
         IDocumentRepository documents,
         IJobRepository jobs,
+        IMessageOutboxWriter outbox,
         IUnitOfWork uow,
-        IDocumentIngestJobPublisher publisher,
         IClock clock)
     {
         _documents = documents;
         _jobs = jobs;
+        _outbox = outbox;
         _uow = uow;
-        _publisher = publisher;
         _clock = clock;
     }
 
@@ -66,9 +67,21 @@ public sealed class DocumentCommandService : IDocumentCommandService
         };
 
         await _jobs.AddAsync(job, cancellationToken);
+        await _outbox.AddAsync(new OutboxMessageRecord
+        {
+            Id = Guid.NewGuid(),
+            JobId = job.Id,
+            MessageType = DocumentIngestMessageNames.MessageType,
+            RoutingKey = DocumentIngestMessageNames.Queue,
+            Payload = job.Payload,
+            CorrelationId = job.Id.ToString("N"),
+            Status = OutboxMessageStatus.Pending,
+            Attempts = 0,
+            Version = 1,
+            CreatedAt = now,
+            UpdatedAt = now
+        }, cancellationToken);
         await _uow.SaveChangesAsync(cancellationToken);
-
-        await _publisher.PublishAsync(job.Id, job.Payload, cancellationToken);
 
         return new CreateDocumentResult(doc.Id, job.Id);
     }
@@ -99,9 +112,21 @@ public sealed class DocumentCommandService : IDocumentCommandService
         };
 
         await _jobs.AddAsync(job, cancellationToken);
+        await _outbox.AddAsync(new OutboxMessageRecord
+        {
+            Id = Guid.NewGuid(),
+            JobId = job.Id,
+            MessageType = DocumentIngestMessageNames.MessageType,
+            RoutingKey = DocumentIngestMessageNames.Queue,
+            Payload = job.Payload,
+            CorrelationId = job.Id.ToString("N"),
+            Status = OutboxMessageStatus.Pending,
+            Attempts = 0,
+            Version = 1,
+            CreatedAt = now,
+            UpdatedAt = now
+        }, cancellationToken);
         await _uow.SaveChangesAsync(cancellationToken);
-
-        await _publisher.PublishAsync(job.Id, job.Payload, cancellationToken);
 
         return true;
     }

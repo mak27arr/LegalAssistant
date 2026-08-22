@@ -2,7 +2,7 @@ using LegalAssistant.Application.Chunks;
 using LegalAssistant.Domain.Models;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
-using Pgvector;
+using System.Globalization;
 
 namespace LegalAssistant.Infrastructure.Chunks;
 
@@ -23,18 +23,21 @@ public sealed class EfDocumentChunkRepository : IDocumentChunkRepository
         if (queryEmbedding == null || queryEmbedding.Length == 0)
             return Array.Empty<DocumentChunk>();
 
-        var qv = new Vector(queryEmbedding);
+        var qv = ToVectorLiteral(queryEmbedding);
 
         var rows = await _db.DocumentChunks
             .FromSqlInterpolated($@"
                 SELECT id, document_id, chunk_index, text, char_range, source_url, embedding, created_at
                 FROM document_chunks
                 WHERE embedding IS NOT NULL
-                ORDER BY embedding <-> {qv}
+                ORDER BY embedding <-> CAST({qv} AS vector(768))
                 LIMIT {topK}")
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         return rows;
     }
+
+    private static string ToVectorLiteral(float[] values)
+        => "[" + string.Join(",", values.Select(v => v.ToString(CultureInfo.InvariantCulture))) + "]";
 }

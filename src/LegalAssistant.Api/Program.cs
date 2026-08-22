@@ -1,14 +1,23 @@
 using LegalAssistant.Api.DependencyInjection;
+using LegalAssistant.Api.Errors;
 using LegalAssistant.Application.Common;
 using LegalAssistant.Application.DependencyInjection;
 using LegalAssistant.Infrastructure.DependencyInjection;
 using LegalAssistant.Infrastructure.Health;
 using LegalAssistant.Api.ServiceEndpoints;
 using LegalAssistant.Logging.DependencyInjection;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+        new BadRequestObjectResult(ApiProblemDetailsFactory.CreateValidationProblemDetails(context))
+        {
+            ContentTypes = { "application/problem+json" }
+        };
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -20,6 +29,7 @@ builder.Services.AddApiReadinessHealthChecks();
 
 var app = builder.Build();
 
+app.UseMiddleware<LegalAssistant.Api.Middleware.GlobalExceptionHandlingMiddleware>();
 app.UseMiddleware<LegalAssistant.Api.Middleware.CorrelationMiddleware>();
 
 var enableRequestTiming = builder.Configuration.GetValue<bool?>("Logging:RequestTiming:Enabled") ?? true;

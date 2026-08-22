@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using LegalAssistant.Application.Messaging;
 using LegalAssistant.Application.Documents.Services;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -39,27 +40,37 @@ public sealed class RabbitMqDocumentIngestJobPublisher : IDocumentIngestJobPubli
             _connection = _factory.CreateConnection();
             _channel?.Dispose();
             _channel = _connection.CreateModel();
+            _channel.ConfirmSelect();
             IngestRabbitMqTopology.EnsureAll(_connection);
         }
     }
 
     public Task PublishAsync(Guid jobId, string payload, CancellationToken cancellationToken = default)
     {
-        EnsureConnection();
+        lock (_lock)
+        {
+            EnsureConnection();
 
-        var body = Encoding.UTF8.GetBytes(payload);
-        var props = _channel!.CreateBasicProperties();
-        props.Persistent = true;
-        props.CorrelationId = jobId.ToString("N");
+            var body = Encoding.UTF8.GetBytes(payload);
+            var props = _channel!.CreateBasicProperties();
+            props.Persistent = true;
+            props.MessageId = jobId.ToString("N");
+            props.CorrelationId = jobId.ToString("N");
+            props.Type = DocumentIngestMessageNames.MessageType;
 
-        _channel.BasicPublish(
-            exchange: "",
-            routingKey: IngestRabbitMqTopology.Queue,
-            mandatory: false,
-            basicProperties: props,
-            body: body);
-        _logger.LogInformation("Published ingest job message. jobId={JobId}", jobId);
-        return Task.CompletedTask;
+            _channel.BasicPublish(
+                exchange: "",
+                routingKey: IngestRabbitMqTopology.Queue,
+                mandatory: false,
+                basicProperties: props,
+                body: body);
+
+            if (!_channel.WaitForConfirms())
+                throw new InvalidOperationException("RabbitMQ did not confirm ingest job publish.");
+
+            _logger.LogInformation("Published ingest job message. jobId={JobId}", jobId);
+            return Task.CompletedTask;
+        }
     }
 
     public void Dispose()

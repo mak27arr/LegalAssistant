@@ -38,7 +38,15 @@ public sealed class RabbitMqIngestConsumerHostedService : BackgroundService
         var user = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
         var pass = Environment.GetEnvironmentVariable("RABBITMQ_PASS") ?? "guest";
 
-        var factory = new ConnectionFactory { HostName = host, Port = port, UserName = user, Password = pass, AutomaticRecoveryEnabled = true };
+        var factory = new ConnectionFactory
+        {
+            HostName = host,
+            Port = port,
+            UserName = user,
+            Password = pass,
+            AutomaticRecoveryEnabled = true,
+            DispatchConsumersAsync = true
+        };
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -54,10 +62,10 @@ public sealed class RabbitMqIngestConsumerHostedService : BackgroundService
 
                 _logger.LogInformation("RabbitMQ ingest consumer connected to {Host}:{Port}", host, port);
 
-                var consumer = new EventingBasicConsumer(_channel);
+                var consumer = new AsyncEventingBasicConsumer(_channel);
                 consumer.Received += async (_, ea) =>
                 {
-                    var corr = ea.BasicProperties?.CorrelationId;
+                    var corr = ea.BasicProperties?.CorrelationId ?? ea.BasicProperties?.MessageId;
                     _logger.LogInformation("Received ingest message, corrId={Corr}", corr);
 
                     try
@@ -70,12 +78,12 @@ public sealed class RabbitMqIngestConsumerHostedService : BackgroundService
                             await processor.ProcessAsync(jobId, stoppingToken);
                         }
 
-                        _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                        _channel!.BasicAck(ea.DeliveryTag, multiple: false);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Error processing ingest message");
-                        _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: true);
+                        _channel!.BasicNack(ea.DeliveryTag, multiple: false, requeue: true);
                     }
                 };
 

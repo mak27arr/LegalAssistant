@@ -24,7 +24,7 @@ builder.Services.Configure<LegalAssistant.Infrastructure.Messaging.RabbitMqProce
 builder.Services.AddHttpClient("ollama", (sp, client) =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
-    var baseUrl = config["Ollama:BaseUrl"] ?? Environment.GetEnvironmentVariable("OLLAMA_BASEURL") ?? "http://ollama:11434";
+    var baseUrl = config["Ollama:BaseUrl"] ?? Environment.GetEnvironmentVariable("OLLAMA_BASE_URL") ?? "http://ollama:11434";
     client.BaseAddress = new Uri(baseUrl);
 });
 

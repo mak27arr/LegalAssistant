@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using RabbitMQ.Client;
 
 namespace LegalAssistant.Infrastructure.Messaging;
@@ -16,16 +14,14 @@ public static class RabbitMqRetryPublisher
         channel.QueueBind(queue: "retry:delayed", exchange: "retry:delayed", routingKey: "retry:delayed");
     }
 
-    public static Task PublishDelayedAsync(
+    public static void PublishDelayed(
         IModel channel,
         string destQueue,
         ReadOnlyMemory<byte> body,
         string? correlationId,
         IDictionary<string, object>? headers,
-        int delaySeconds,
-        CancellationToken cancellationToken)
+        int delaySeconds)
     {
-        // Uses per-message expiration + DLX to route back to destination queue.
         var retryDlx = "retry:dlx";
         var retryQueue = $"retry:{destQueue}";
 
@@ -49,6 +45,5 @@ public static class RabbitMqRetryPublisher
         props.Expiration = (delaySeconds <= 0 ? 0 : delaySeconds * 1000).ToString();
 
         channel.BasicPublish(exchange: retryDlx, routingKey: destQueue, mandatory: false, basicProperties: props, body: body);
-        return Task.CompletedTask;
     }
 }

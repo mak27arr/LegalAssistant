@@ -43,7 +43,8 @@ public sealed class EmbeddingQueueWorker : BackgroundService
                     Port = _options.Port,
                     UserName = _options.User,
                     Password = _options.Pass,
-                    AutomaticRecoveryEnabled = true
+                    AutomaticRecoveryEnabled = true,
+                    DispatchConsumersAsync = true
                 };
 
                 using var connection = factory.CreateConnection();
@@ -52,8 +53,8 @@ public sealed class EmbeddingQueueWorker : BackgroundService
                 EmbeddingsRabbitMqTopology.EnsureAll(connection);
                 channel.BasicQos(0, 1, false);
 
-                var consumer = new EventingBasicConsumer(channel);
-                consumer.Received += (_, ea) => _ = HandleAsync(channel, ea, stoppingToken);
+                var consumer = new AsyncEventingBasicConsumer(channel);
+                consumer.Received += async (_, ea) => await HandleAsync(channel, ea, stoppingToken);
 
                 channel.BasicConsume(queue: _options.QueueName, autoAck: false, consumerTag: "", noLocal: false, exclusive: false, arguments: null, consumer: consumer);
 
@@ -120,19 +121,18 @@ public sealed class EmbeddingQueueWorker : BackgroundService
             var completed = new EmbeddingCompletedMessage(request.ChunkId, vector);
             var completedBody = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(completed));
 
+            _logger.LogInformation("Publishing embeddings:completed. VectorDimensions={Dimensions}", vector.Length);
             var props = channel.CreateBasicProperties();
             props.Persistent = true;
             props.Headers ??= new System.Collections.Generic.Dictionary<string, object>();
             RabbitMqCorrelation.SetCorrelationId(props.Headers, correlationId);
             props.CorrelationId = correlationId;
 
-            _logger.LogInformation("Publishing embeddings:completed. VectorDimensions={Dimensions}", vector.Length);
             channel.BasicPublish(exchange: "", routingKey: "embeddings:completed", mandatory: false, basicProperties: props, body: completedBody);
             channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
         }
         catch (OperationCanceledException)
-        {
-            // If we are shutting down, requeue.
+        {            
             _logger.LogInformation("Operation canceled; requeueing message");
             channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: true);
         }
@@ -156,14 +156,13 @@ public sealed class EmbeddingQueueWorker : BackgroundService
             var headers = ea.BasicProperties?.Headers ?? new System.Collections.Generic.Dictionary<string, object>();
             RabbitMqRetryPolicy.SetAttempts(headers, attempts);
 
-            await RabbitMqRetryPublisher.PublishDelayedAsync(
+            RabbitMqRetryPublisher.PublishDelayed(
                 channel,
                 _options.QueueName,
                 ea.Body,
                 ea.BasicProperties?.CorrelationId,
                 headers,
-                delaySeconds,
-                stoppingToken);
+                delaySeconds);
 
             channel.BasicAck(ea.DeliveryTag, multiple: false);
         }

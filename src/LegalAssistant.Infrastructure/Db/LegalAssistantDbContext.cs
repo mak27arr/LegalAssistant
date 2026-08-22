@@ -13,6 +13,7 @@ namespace LegalAssistant.Infrastructure.Db
         public DbSet<DocumentChunk> DocumentChunks { get; set; }
         public DbSet<ChunkingRun> ChunkingRuns { get; set; }
         public DbSet<JobRecord> Jobs { get; set; }
+        public DbSet<OutboxMessageRecord> OutboxMessages { get; set; }
         public DbSet<RagPromptTemplate> RagPromptTemplates { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

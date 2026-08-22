@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using LegalAssistant.Application.Chunking.Services;
+using LegalAssistant.Application.Common;
 using LegalAssistant.Infrastructure.Chunking;
 using LegalAssistant.Infrastructure.Db;
 using LegalAssistant.Infrastructure.Documents;
@@ -11,6 +12,7 @@ using LegalAssistant.Infrastructure.Messaging;
 using LegalAssistant.Infrastructure.Common;
 using LegalAssistant.Application.Rag.Services;
 using LegalAssistant.Core.Correlation;
+using LegalAssistant.Application.Messaging;
 
 namespace LegalAssistant.Workers.DependencyInjection;
 
@@ -32,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IHtmlToTextConverter, StructuredHtmlToTextConverter>();
         services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>();
         services.AddSingleton<IDocumentIngestJobPublisher, RabbitMqDocumentIngestJobPublisher>();
+        services.AddScoped<IMessageOutboxWriter, EfMessageOutboxWriter>();
 
         services.AddScoped<IIngestJobProcessor, IngestJobProcessor>();
 
@@ -43,9 +46,11 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IRagPromptBuilder, DefaultRagPromptBuilder>();
         services.AddScoped<ICorrelationContext, CorrelationContext>();
+        services.AddSingleton<IClock, SystemClock>();
 
         services.AddHostedService<RabbitMqEmbeddingCompletedConsumerHostedService>();
         services.AddHostedService<RabbitMqIngestConsumerHostedService>();
+        services.AddHostedService<QueuedJobOutboxDispatcherHostedService>();
 
         return services;
     }
