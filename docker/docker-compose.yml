@@ -143,6 +143,20 @@ services:
     networks:
       - legal-assistant-net
 
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    environment:
+      VITE_PROXY_TARGET: http://api
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - legal-assistant-net
+
 volumes:
   pgdata:
   minio_data:
