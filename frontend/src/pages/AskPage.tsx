@@ -52,7 +52,10 @@ export function AskPage() {
   useEffect(() => {
     const sanitized = readStoredJobs();
     setJobs((current) => {
-      if (current.length === sanitized.length) {
+      const currentIds = current.map((job) => job.jobId).join('|');
+      const sanitizedIds = sanitized.map((job) => job.jobId).join('|');
+
+      if (currentIds === sanitizedIds) {
         return current;
       }
 
@@ -82,6 +85,10 @@ export function AskPage() {
   }, [jobs]);
 
   function updateJob(job: AskJobResponse) {
+    if (!isValidAskJob(job)) {
+      return;
+    }
+
     setJobs((current) => {
       const next = [job, ...current.filter((item) => item.jobId !== job.jobId)];
       next.sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
@@ -164,6 +171,8 @@ export function AskPage() {
     setJobs([]);
   }
 
+  const visibleJobs = jobs.filter(isValidAskJob);
+
   return (
     <div className="page-grid">
       <section className="panel">
@@ -229,11 +238,11 @@ export function AskPage() {
           <span className="code-chip">{'GET /api/ask/jobs/{jobId}/events'}</span>
         </div>
 
-        {jobs.length === 0 ? (
+        {visibleJobs.length === 0 ? (
           <div className="inline-info">No ask jobs yet. Submit a question to open the first realtime stream.</div>
         ) : (
           <div className="event-list">
-            {jobs.map((job) => (
+            {visibleJobs.map((job) => (
               <article className="event-item" key={job.jobId}>
                 <div className="event-item-header">
                   <div>

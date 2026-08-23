@@ -40,7 +40,7 @@ public sealed class DefaultRagPromptBuilder : IRagPromptBuilder
         var i = 1;
         foreach (var chunk in chunks)
         {
-            var sourceHeader = $"[{i}] chunkId={chunk.ChunkId} doc={chunk.DocumentId} chunk={chunk.ChunkIndex} score={chunk.Score:0.####} url={chunk.SourceUrl ?? "n/a"}";
+            var sourceHeader = $"[{i}] url={chunk.SourceUrl ?? "n/a"}";
             var sourceBlock = new StringBuilder()
                 .AppendLine(sourceHeader)
                 .AppendLine("BEGIN UNTRUSTED SOURCE")

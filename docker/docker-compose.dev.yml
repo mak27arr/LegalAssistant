@@ -54,6 +54,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       LOG_PATH: /var/log/myapp/api.log
+      Ollama__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-300}
     ports:
       - "5000:80"
     volumes:
@@ -63,6 +64,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       LOG_PATH: /var/log/myapp/workers.log
+      Rag__DefaultTopK: ${RAG_DEFAULT_TOPK:-5}
+      Rag__MaxTopK: ${RAG_MAX_TOP_K:-20}
+      Rag__PromptTokenBudget: ${RAG_PROMPT_TOKEN_BUDGET:-6000}
+      Rag__ApproxCharsPerToken: ${RAG_APPROX_CHARS_PER_TOKEN:-4}
+      Ollama__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-300}
     volumes:
       - ./logs:/var/log/myapp
 

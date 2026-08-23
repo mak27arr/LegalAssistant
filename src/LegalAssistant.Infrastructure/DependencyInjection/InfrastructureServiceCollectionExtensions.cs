@@ -62,6 +62,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<LegalAssistant.Application.Rag.ILlmClient, LegalAssistant.Infrastructure.Rag.OllamaLlmClient>((sp, client) =>
         {
             client.BaseAddress = new Uri(ollamaBase);
+            var timeoutSeconds = configuration.GetValue<int?>("Ollama:TimeoutSeconds")
+                                 ?? (int.TryParse(Environment.GetEnvironmentVariable("Ollama__TimeoutSeconds"), out var envTimeout)
+                                     ? envTimeout
+                                     : 300);
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds));
         });
 
         services.AddSingleton<IDocumentIngestJobPublisher, RabbitMqDocumentIngestJobPublisher>();
