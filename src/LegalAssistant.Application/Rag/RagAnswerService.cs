@@ -41,6 +41,24 @@ public sealed class RagAnswerService : IRagAnswerService
     public async Task<RagAnswerResult> AnswerAsync(RagAnswerQuery query, CancellationToken cancellationToken = default)
     {
         var built = await BuildPromptAsync(query, cancellationToken);
+        if (built.UsedChunkCount == 0)
+        {
+            return new RagAnswerResult(
+                built.Question,
+                built.RequestedTopK,
+                built.TopK,
+                built.UsedChunkCount,
+                BuildRefusalMessage(),
+                built.Sources,
+                built.Prompt,
+                built.PromptTokenBudget,
+                built.PromptTokenEstimate,
+                built.WasTruncatedByBudget,
+                false,
+                Array.Empty<int>(),
+                new[] { "No chunks were retrieved from the database." });
+        }
+
         var answer = await _llm.GenerateAsync(built.Prompt, cancellationToken);
         var validation = _validator.Validate(answer, built.Sources);
 
@@ -83,6 +101,19 @@ public sealed class RagAnswerService : IRagAnswerService
         }
 
         var ask = await _ask.AskAsync(new AskQuery(query.Question, effectiveTopK), cancellationToken);
+        if (ask.Chunks.Count == 0)
+        {
+            return new RagPromptResult(
+                query.Question,
+                requestedTopK,
+                effectiveTopK,
+                0,
+                Array.Empty<RagAnswerSource>(),
+                string.Empty,
+                0,
+                0,
+                false);
+        }
 
         var template = await _promptTemplate.GetAsync(cancellationToken);
         var prompt = _promptBuilder.Build(template, ask.Question, ask.Chunks, requestedTopK, effectiveTopK, policy);

@@ -57,7 +57,7 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
 
             await LoadContentIfEmptyAsync(payload, doc, cancellationToken);
 
-            var text = string.IsNullOrWhiteSpace(doc.Content) ? string.Empty : doc.Content;
+            var text = NormalizeText(doc.Content);
             var chunkIndex = 0;
 
             var (run, chunking) = await _chunkingRunService.CreateAsync(
@@ -98,7 +98,7 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
 
     private async Task<DocumentChunk> AddChunkAsync(Document doc, string text, int chunkIndex, ChunkingRun run, Domain.Chunking.ChunkRange range, CancellationToken cancellationToken)
     {
-        var chunkText = text.Substring(range.Start, range.Length);
+            var chunkText = NormalizeText(text.Substring(range.Start, range.Length));
         var chunk = new DocumentChunk
         {
             Id = Guid.NewGuid(),
@@ -122,11 +122,14 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
             var plain = await _contentFetcher.FetchPlainTextAsync(payload.Url, cancellationToken);
             if (!string.IsNullOrWhiteSpace(plain))
             {
-                doc.Content = plain;
+                doc.Content = NormalizeText(plain);
                 _documents.Update(doc);
             }
         }
     }
+
+    private static string NormalizeText(string? text)
+        => string.IsNullOrEmpty(text) ? string.Empty : text.Replace("\0", string.Empty);
 
     private async Task<JobRecord> RequireJobAsync(Guid jobId, CancellationToken cancellationToken)
         => await _jobs.GetByIdAsync(jobId, cancellationToken)

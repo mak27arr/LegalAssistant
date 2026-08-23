@@ -45,9 +45,9 @@ public sealed class HttpDocumentContentFetcher : IDocumentContentFetcher
         var body = await ReadBodyAsync(resp, timeoutCts.Token);
 
         if (!string.IsNullOrWhiteSpace(contentType) && !contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
-            return body;
+            return NormalizeText(body);
 
-        return _htmlToText.Convert(body);
+        return NormalizeText(_htmlToText.Convert(body));
     }
 
     private CancellationTokenSource CreateTimeoutCancellationTokenSource(CancellationToken cancellationToken)
@@ -71,6 +71,9 @@ public sealed class HttpDocumentContentFetcher : IDocumentContentFetcher
 
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
+
+    private static string NormalizeText(string text)
+        => string.IsNullOrEmpty(text) ? text : text.Replace("\0", string.Empty);
 
     private static async Task<byte[]> ReadBytesWithLimitAsync(Stream stream, long maxBytes, CancellationToken cancellationToken)
     {
