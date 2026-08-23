@@ -1,9 +1,10 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { createDocument, getDocumentStats, getJob } from '../shared/api/client';
+import { useNavigate } from 'react-router-dom';
+import { createDocument, getDocumentStats, getDocuments, getJob } from '../shared/api/client';
 import { generateClientId } from '../shared/lib/ids';
 import { readStorage, writeStorage } from '../shared/lib/storage';
-import type { CreateDocumentRequest, DocumentStatsResponse } from '../shared/types/api';
+import type { CreateDocumentRequest, DocumentListItemResponse, DocumentStatsResponse } from '../shared/types/api';
 import { MetricCard } from '../shared/ui/MetricCard';
 import { StatusPill } from '../shared/ui/StatusPill';
 
@@ -31,7 +32,8 @@ function buildTitleFromUrl(rawUrl: string): string {
 
   try {
     const parsed = new URL(rawUrl);
-    const lastSegment = parsed.pathname.split('/').filter(Boolean).at(-1);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    const lastSegment = segments.length > 0 ? segments[segments.length - 1] : undefined;
     return lastSegment ? decodeURIComponent(lastSegment) : parsed.hostname;
   } catch {
     return rawUrl.trim() || fallback;
@@ -39,16 +41,21 @@ function buildTitleFromUrl(rawUrl: string): string {
 }
 
 export function DocumentsPage() {
+  const navigate = useNavigate();
   const [form, setForm] = useState<CreateDocumentRequest>(initialForm);
   const [stats, setStats] = useState<DocumentStatsResponse | null>(null);
+  const [documents, setDocuments] = useState<DocumentListItemResponse[]>([]);
   const [tracked, setTracked] = useState<TrackedDocument[]>(() => readStorage(trackedDocumentsKey, [] as TrackedDocument[]));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshingStats, setIsRefreshingStats] = useState(false);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
 
   useEffect(() => {
     void refreshStats();
+    void refreshDocuments();
   }, []);
 
   useEffect(() => {
@@ -103,6 +110,19 @@ export function DocumentsPage() {
     }
   }
 
+  async function refreshDocuments() {
+    setIsLoadingDocuments(true);
+    setDocumentsError(null);
+
+    try {
+      setDocuments(await getDocuments());
+    } catch (requestError) {
+      setDocumentsError(requestError instanceof Error ? requestError.message : 'Unable to load documents.');
+    } finally {
+      setIsLoadingDocuments(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -130,6 +150,7 @@ export function DocumentsPage() {
       setTracked((current) => [submittedItem, ...current].slice(0, 12));
       setForm(initialForm);
       await refreshStats();
+      await refreshDocuments();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to submit document.');
     } finally {
@@ -173,6 +194,9 @@ export function DocumentsPage() {
             <button className="button-secondary" disabled={isSubmitting} type="button" onClick={() => void refreshStats()}>
               {isRefreshingStats ? 'Refreshing...' : 'Refresh stats'}
             </button>
+            <button className="button-secondary" disabled={isSubmitting} type="button" onClick={() => void refreshDocuments()}>
+              {isLoadingDocuments ? 'Refreshing docs...' : 'Refresh documents'}
+            </button>
           </div>
         </form>
       </section>
@@ -196,6 +220,62 @@ export function DocumentsPage() {
             <MetricCard value={stats?.completedJobs ?? '—'} label="Completed" />
             <MetricCard value={stats?.failedJobs ?? '—'} label="Failed" />
           </div>
+        </section>
+
+        <section className="list-card">
+          <div className="stack-header">
+            <div>
+              <h3>Documents in database</h3>
+              <p>Loaded from the new list endpoint. Click a row to open document details.</p>
+            </div>
+            <span className="code-chip">GET /api/documents</span>
+          </div>
+
+          {documentsError ? <div className="inline-error">{documentsError}</div> : null}
+
+          {documents.length === 0 ? (
+            <div className="inline-info">
+              {isLoadingDocuments ? 'Loading documents...' : 'No documents returned by the backend yet.'}
+            </div>
+          ) : (
+            <div className="table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Version</th>
+                    <th>Chunks</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.map((document) => (
+                    <tr
+                      className="table-row-button"
+                      key={document.id}
+                      onClick={() => navigate(`/documents/${document.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          navigate(`/documents/${document.id}`);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <td>
+                        <strong>{document.title}</strong>
+                        <div className="table-subtitle">{document.url}</div>
+                      </td>
+                      <td>{document.version}</td>
+                      <td>{document.chunkCount}</td>
+                      <td>{new Date(document.updatedAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section className="list-card">

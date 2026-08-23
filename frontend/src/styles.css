@@ -317,6 +317,48 @@ textarea {
   gap: 14px;
 }
 
+.table-shell {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 14px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(91, 61, 43, 0.1);
+  vertical-align: top;
+}
+
+.data-table th {
+  color: var(--muted);
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.table-row-button {
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+.table-row-button:hover,
+.table-row-button:focus-visible {
+  background: rgba(157, 64, 33, 0.08);
+  outline: none;
+}
+
+.table-subtitle {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
 .tracked-item,
 .event-item {
   padding: 16px;
@@ -382,6 +424,28 @@ textarea {
   background: rgba(52, 40, 33, 0.06);
   border-radius: 12px;
   padding: 4px 8px;
+}
+
+.details-grid {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.detail-card {
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(91, 61, 43, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.detail-card h3 {
+  margin: 0 0 10px;
+}
+
+.source-break {
+  word-break: break-word;
 }
 
 @media (max-width: 960px) {

@@ -18,6 +18,26 @@ export interface DocumentStatsResponse {
   failedJobs: number;
 }
 
+export interface DocumentListItemResponse {
+  id: string;
+  title: string;
+  url: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  chunkCount: number;
+}
+
+export interface DocumentDetailsResponse {
+  id: string;
+  title: string;
+  url: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  chunkCount: number;
+}
+
 export interface JobResponse {
   id: string;
   type: string;

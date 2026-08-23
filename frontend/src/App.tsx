@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
 import { AskPage } from './pages/AskPage';
+import { DocumentDetailsPage } from './pages/DocumentDetailsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 
 const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
@@ -30,6 +31,7 @@ export default function App() {
       <main className="page-frame">
         <Routes>
           <Route path="/" element={<DocumentsPage />} />
+          <Route path="/documents/:documentId" element={<DocumentDetailsPage />} />
           <Route path="/ask" element={<AskPage />} />
         </Routes>
       </main>

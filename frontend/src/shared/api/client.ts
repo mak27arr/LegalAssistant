@@ -2,6 +2,8 @@ import type {
   AskAsyncRequest,
   AskJobResponse,
   AskJobSubmissionResponse,
+  DocumentDetailsResponse,
+  DocumentListItemResponse,
   CreateDocumentRequest,
   CreateDocumentResponse,
   DocumentStatsResponse,
@@ -51,6 +53,14 @@ export function createDocument(payload: CreateDocumentRequest) {
 
 export function getDocumentStats() {
   return request<DocumentStatsResponse>('/api/documents/stats');
+}
+
+export function getDocuments() {
+  return request<DocumentListItemResponse[]>('/api/documents');
+}
+
+export function getDocument(documentId: string) {
+  return request<DocumentDetailsResponse>(`/api/documents/${documentId}`);
 }
 
 export function getJob(jobId: string) {
