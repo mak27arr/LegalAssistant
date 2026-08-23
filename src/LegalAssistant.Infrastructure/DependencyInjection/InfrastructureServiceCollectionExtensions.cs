@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using LegalAssistant.Infrastructure.Chunking;
+using LegalAssistant.Application.Ask.Services;
 using LegalAssistant.Application.Ask;
 using LegalAssistant.Infrastructure.Ask;
 using LegalAssistant.Infrastructure.Db;
@@ -71,6 +72,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IStrategyCandidate, FixedSizeCandidate>();
 
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<IAskJobRepository, EfAskJobRepository>();
+        services.AddScoped<IAskJobEventRepository, EfAskJobEventRepository>();
+        services.AddSingleton<IAskJobEventPublisher, RabbitMqAskJobEventPublisher>();
         services.AddScoped<IDocumentRepository, EfDocumentRepository>();
         services.AddScoped<IDocumentStatsQueryService, DocumentStatsQueryService>();
         services.AddScoped<IJobRepository, EfJobRepository>();

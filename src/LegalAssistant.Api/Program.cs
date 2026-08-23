@@ -5,6 +5,7 @@ using LegalAssistant.Application.DependencyInjection;
 using LegalAssistant.Infrastructure.DependencyInjection;
 using LegalAssistant.Infrastructure.Health;
 using LegalAssistant.Api.ServiceEndpoints;
+using LegalAssistant.Api.Swagger;
 using LegalAssistant.Logging.DependencyInjection;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,7 +20,10 @@ builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
         };
 });
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.OperationFilter<RequireIdempotencyKeyOperationFilter>();
+});
 
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApplicationServices();

@@ -26,7 +26,7 @@ public sealed class OutboxMessageRecordConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         b.Property(x => x.PublishedAt).HasColumnName("published_at");
 
-        b.HasIndex(x => x.JobId).IsUnique();
+        b.HasIndex(x => new { x.JobId, x.MessageType }).IsUnique();
         b.HasIndex(x => new { x.Status, x.NextAttemptAt, x.CreatedAt });
     }
 }

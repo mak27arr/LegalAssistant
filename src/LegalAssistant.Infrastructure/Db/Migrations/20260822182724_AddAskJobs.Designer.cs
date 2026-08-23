@@ -3,6 +3,7 @@ using System;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
@@ -12,9 +13,11 @@ using Pgvector;
 namespace LegalAssistant.Infrastructure.Db.Migrations
 {
     [DbContext(typeof(LegalAssistantDbContext))]
-    partial class LegalAssistantDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260822182724_AddAskJobs")]
+    partial class AddAskJobs
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -23,78 +26,6 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("LegalAssistant.Domain.Models.AskJobEventRecord", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("ActorScopeKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("actor_scope_key");
-
-                    b.Property<string>("ConversationId")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("conversation_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<string>("Error")
-                        .HasColumnType("text")
-                        .HasColumnName("error");
-
-                    b.Property<string>("IdempotencyKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("idempotency_key");
-
-                    b.Property<Guid>("JobId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("job_id");
-
-                    b.Property<DateTime>("OccurredAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("occurred_at_utc");
-
-                    b.Property<string>("Question")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("question");
-
-                    b.Property<string>("ResultJson")
-                        .HasColumnType("text")
-                        .HasColumnName("result_json");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("status");
-
-                    b.Property<int>("TopK")
-                        .HasColumnType("integer")
-                        .HasColumnName("top_k");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("JobId", "Id");
-
-                    b.HasIndex("JobId", "Status");
-
-                    b.ToTable("ask_job_events", (string)null);
-                });
 
             modelBuilder.Entity("LegalAssistant.Domain.Models.AskJobRecord", b =>
                 {
@@ -457,7 +388,7 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("JobId", "MessageType")
+                    b.HasIndex("JobId")
                         .IsUnique();
 
                     b.HasIndex("Status", "NextAttemptAt", "CreatedAt");

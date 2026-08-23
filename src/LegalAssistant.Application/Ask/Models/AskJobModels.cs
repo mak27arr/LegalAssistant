@@ -1,0 +1,33 @@
+using LegalAssistant.Application.Rag.Models;
+using LegalAssistant.Domain.Models;
+
+namespace LegalAssistant.Application.Ask.Models;
+
+public sealed record AskJobSubmissionCommand(
+    string Question,
+    int TopK,
+    string? ConversationId,
+    string ActorScopeKey,
+    string IdempotencyKey);
+
+public sealed record AskJobSubmissionResult(
+    Guid JobId,
+    AskJobStatus Status,
+    bool IsNew,
+    string ActorScopeKey,
+    string IdempotencyKey,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);
+
+public sealed record AskJobDetails(
+    Guid JobId,
+    AskJobStatus Status,
+    string ActorScopeKey,
+    string IdempotencyKey,
+    string Question,
+    int TopK,
+    string? ConversationId,
+    string? Error,
+    RagAnswerResult? Result,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);

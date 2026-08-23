@@ -131,6 +131,7 @@ services:
       RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}
       RABBITMQ_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
       Embeddings__BaseUrl: ${EMBEDDINGS_BASE_URL:-http://embeddings}
+      Ollama__LlmModel: ${OLLAMA_LLM_MODEL:-llama3:8b}
     command: dotnet LegalAssistant.Workers.dll
     depends_on:
       postgres:

@@ -112,5 +112,5 @@ public sealed class RagAnswerService : IRagAnswerService
     }
 
     private static string BuildRefusalMessage()
-        => "I could not produce a grounded answer from the provided sources. Please narrow the question or provide more relevant documents.";
+        => "I could not produce a grounded answer from the provided sources.";
 }

@@ -3,6 +3,7 @@ using System;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
@@ -12,9 +13,11 @@ using Pgvector;
 namespace LegalAssistant.Infrastructure.Db.Migrations
 {
     [DbContext(typeof(LegalAssistantDbContext))]
-    partial class LegalAssistantDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260823091118_AddAskJobEvents")]
+    partial class AddAskJobEvents
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -457,7 +460,7 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("JobId", "MessageType")
+                    b.HasIndex("JobId")
                         .IsUnique();
 
                     b.HasIndex("Status", "NextAttemptAt", "CreatedAt");

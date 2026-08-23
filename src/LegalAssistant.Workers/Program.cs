@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
 using LegalAssistant.Infrastructure.Db;
+using LegalAssistant.Application.DependencyInjection;
 using LegalAssistant.Workers.DependencyInjection;
 using LegalAssistant.Logging.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ var host = Host.CreateDefaultBuilder(args)
         // provide service name so logs go to separate per-service files
         services.AddCentralizedLogging(context.Configuration, "workers");
 
+        services.AddApplicationServices();
         services.AddWorkerInfrastructure(context.Configuration);
     })
     .Build();

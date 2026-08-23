@@ -1,5 +1,6 @@
+using System.Text.Json;
+using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Common;
-using LegalAssistant.Application.Documents.Services;
 using LegalAssistant.Application.Messaging;
 using LegalAssistant.Domain.Models;
 using LegalAssistant.Infrastructure.Db;
@@ -8,9 +9,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace LegalAssistant.Infrastructure.Messaging;
+namespace LegalAssistant.Infrastructure.Ask;
 
-public sealed class QueuedJobOutboxDispatcherHostedService : BackgroundService
+public sealed class AskJobOutboxDispatcherHostedService : BackgroundService
 {
     private static readonly TimeSpan PollDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan StaleLease = TimeSpan.FromMinutes(2);
@@ -19,12 +20,12 @@ public sealed class QueuedJobOutboxDispatcherHostedService : BackgroundService
     private const int MaxAttempts = 10;
 
     private readonly IServiceProvider _sp;
-    private readonly ILogger<QueuedJobOutboxDispatcherHostedService> _logger;
+    private readonly ILogger<AskJobOutboxDispatcherHostedService> _logger;
     private readonly IClock _clock;
 
-    public QueuedJobOutboxDispatcherHostedService(
+    public AskJobOutboxDispatcherHostedService(
         IServiceProvider sp,
-        ILogger<QueuedJobOutboxDispatcherHostedService> logger,
+        ILogger<AskJobOutboxDispatcherHostedService> logger,
         IClock clock)
     {
         _sp = sp;
@@ -40,58 +41,23 @@ public sealed class QueuedJobOutboxDispatcherHostedService : BackgroundService
             {
                 using var scope = _sp.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<LegalAssistantDbContext>();
-                var publisher = scope.ServiceProvider.GetRequiredService<IDocumentIngestJobPublisher>();
+                var publisher = scope.ServiceProvider.GetRequiredService<IAskJobEventPublisher>();
 
-                await RepairQueuedJobsAsync(db, stoppingToken);
                 await DispatchBatchAsync(db, publisher, stoppingToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Outbox dispatcher cycle failed");
+                _logger.LogError(ex, "Ask outbox dispatcher cycle failed");
             }
 
             await Task.Delay(PollDelay, stoppingToken);
         }
     }
 
-    private async Task RepairQueuedJobsAsync(LegalAssistantDbContext db, CancellationToken cancellationToken)
-    {
-        var jobs = await db.Jobs
-            .Where(j => j.Status == JobStatus.Queued)
-            .Where(j => !db.OutboxMessages.Any(o => o.JobId == j.Id && o.MessageType == DocumentIngestMessageNames.MessageType))
-            .OrderBy(j => j.CreatedAt)
-            .Take(BatchSize)
-            .ToListAsync(cancellationToken);
-
-        if (jobs.Count == 0)
-            return;
-
-        var now = _clock.UtcNow;
-        foreach (var job in jobs)
-        {
-            await db.OutboxMessages.AddAsync(new OutboxMessageRecord
-            {
-                Id = Guid.NewGuid(),
-                JobId = job.Id,
-                MessageType = DocumentIngestMessageNames.MessageType,
-                RoutingKey = DocumentIngestMessageNames.Queue,
-                Payload = job.Payload,
-                CorrelationId = job.Id.ToString("N"),
-                Status = OutboxMessageStatus.Pending,
-                Attempts = 0,
-                Version = 1,
-                CreatedAt = now,
-                UpdatedAt = now
-            }, cancellationToken);
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
-    }
-
-    private async Task DispatchBatchAsync(LegalAssistantDbContext db, IDocumentIngestJobPublisher publisher, CancellationToken cancellationToken)
+    private async Task DispatchBatchAsync(LegalAssistantDbContext db, IAskJobEventPublisher publisher, CancellationToken cancellationToken)
     {
         var utcNow = _clock.UtcNow;
-        var messages = await ClaimDueBatchAsync(db, DocumentIngestMessageNames.MessageType, BatchSize, StaleLease, utcNow, cancellationToken);
+        var messages = await ClaimDueBatchAsync(db, BatchSize, StaleLease, utcNow, cancellationToken);
         if (messages.Count == 0)
             return;
 
@@ -99,23 +65,26 @@ public sealed class QueuedJobOutboxDispatcherHostedService : BackgroundService
         {
             try
             {
-                await publisher.PublishAsync(message.JobId, message.Payload, cancellationToken);
+                var eventRecord = JsonSerializer.Deserialize<AskJobEventRecord>(message.Payload);
+                if (eventRecord == null)
+                    throw new InvalidOperationException($"Ask outbox payload could not be deserialized. outboxId={message.Id}");
+
+                await publisher.PublishAsync(eventRecord, cancellationToken);
                 await MarkPublishedAsync(db, message.Id, _clock.UtcNow, cancellationToken);
-                _logger.LogInformation("Published outbox message. jobId={JobId} outboxId={OutboxId}", message.JobId, message.Id);
+                _logger.LogInformation("Published ask outbox message. jobId={JobId} outboxId={OutboxId} status={Status}", message.CorrelationId, message.Id, eventRecord.Status);
             }
             catch (Exception ex)
             {
                 var nextAttemptAt = _clock.UtcNow.Add(CalculateBackoff(message.Attempts + 1));
                 var terminal = message.Attempts + 1 >= MaxAttempts;
                 await MarkRetryAsync(db, message.Id, ex.Message, nextAttemptAt, terminal, _clock.UtcNow, cancellationToken);
-                _logger.LogWarning(ex, "Failed to publish outbox message. jobId={JobId} outboxId={OutboxId} attempt={Attempt}", message.JobId, message.Id, message.Attempts + 1);
+                _logger.LogWarning(ex, "Failed to publish ask outbox message. jobId={JobId} outboxId={OutboxId} attempt={Attempt}", message.CorrelationId, message.Id, message.Attempts + 1);
             }
         }
     }
 
     private static async Task<IReadOnlyList<OutboxMessageRecord>> ClaimDueBatchAsync(
         LegalAssistantDbContext db,
-        string messageType,
         int batchSize,
         TimeSpan staleLease,
         DateTime utcNow,
@@ -125,7 +94,7 @@ public sealed class QueuedJobOutboxDispatcherHostedService : BackgroundService
 
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         var messages = await db.OutboxMessages
-            .Where(x => x.MessageType == messageType)
+            .Where(x => AskJobMessageNames.MessageTypes.Contains(x.MessageType))
             .Where(x =>
                 (x.Status == OutboxMessageStatus.Pending && (x.NextAttemptAt == null || x.NextAttemptAt <= utcNow)) ||
                 (x.Status == OutboxMessageStatus.Processing && x.UpdatedAt <= staleBefore))
