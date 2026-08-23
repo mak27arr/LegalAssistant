@@ -56,6 +56,7 @@ public static class InfrastructureServiceCollectionExtensions
         {
             client.BaseAddress = new Uri(embeddingsBase);
         });
+        services.AddScoped<Application.Embeddings.IEmbeddingEnqueueService, RabbitMqEmbeddingRequestPublisher>();
 
         var ollamaBase = configuration["Ollama:BaseUrl"] ?? Environment.GetEnvironmentVariable("Ollama__BaseUrl") ?? "http://ollama:11434";
         services.AddHttpClient<LegalAssistant.Application.Rag.ILlmClient, LegalAssistant.Infrastructure.Rag.OllamaLlmClient>((sp, client) =>
