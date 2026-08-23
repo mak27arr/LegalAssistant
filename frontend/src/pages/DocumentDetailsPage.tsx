@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getDocument } from '../shared/api/client';
 import type { DocumentDetailsResponse } from '../shared/types/api';
 
 export function DocumentDetailsPage() {
+  const navigate = useNavigate();
   const { documentId } = useParams<{ documentId: string }>();
   const [document, setDocument] = useState<DocumentDetailsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,8 +44,8 @@ export function DocumentDetailsPage() {
       </div>
 
       <div className="button-row">
-        <Link className="button-secondary" to="/">
-          Back to documents
+        <Link className="button-secondary" to="/documents">
+          Back to documents database
         </Link>
       </div>
 
@@ -62,7 +63,13 @@ export function DocumentDetailsPage() {
             <span>Version</span>
           </div>
           <div className="metric-card">
-            <strong>{document.chunkCount}</strong>
+            {document.chunkCount > 0 ? (
+              <button className="metric-link" type="button" onClick={() => navigate(`/documents/${document.id}/chunks`)}>
+                {document.chunkCount}
+              </button>
+            ) : (
+              <strong>{document.chunkCount}</strong>
+            )}
             <span>Chunks</span>
           </div>
           <div className="metric-card">

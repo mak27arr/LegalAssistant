@@ -38,6 +38,38 @@ export interface DocumentDetailsResponse {
   chunkCount: number;
 }
 
+export interface ChunkListItemResponse {
+  chunkId: string;
+  documentId: string;
+  chunkIndex: number;
+  charRange: string;
+  sourceUrl: string;
+  createdAt: string;
+  hasEmbedding: boolean;
+  preview: string;
+}
+
+export interface ChunkPageResponse {
+  items: ChunkListItemResponse[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface ChunkDetailsResponse {
+  chunkId: string;
+  documentId: string;
+  chunkIndex: number;
+  text: string;
+  charRange: string;
+  sourceUrl: string;
+  createdAt: string;
+  hasEmbedding: boolean;
+}
+
 export interface JobResponse {
   id: string;
   type: string;

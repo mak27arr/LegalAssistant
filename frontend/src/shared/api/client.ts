@@ -2,6 +2,8 @@ import type {
   AskAsyncRequest,
   AskJobResponse,
   AskJobSubmissionResponse,
+  ChunkDetailsResponse,
+  ChunkPageResponse,
   DocumentDetailsResponse,
   DocumentListItemResponse,
   CreateDocumentRequest,
@@ -61,6 +63,14 @@ export function getDocuments() {
 
 export function getDocument(documentId: string) {
   return request<DocumentDetailsResponse>(`/api/documents/${documentId}`);
+}
+
+export function getDocumentChunks(documentId: string, page = 1, pageSize = 20) {
+  return request<ChunkPageResponse>(`/api/documents/${documentId}/chunks?page=${page}&pageSize=${pageSize}`);
+}
+
+export function getChunk(chunkId: string) {
+  return request<ChunkDetailsResponse>(`/api/chunks/${chunkId}`);
 }
 
 export function getJob(jobId: string) {

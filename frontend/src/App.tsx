@@ -1,6 +1,8 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
 import { AskPage } from './pages/AskPage';
 import { DocumentDetailsPage } from './pages/DocumentDetailsPage';
+import { DocumentChunksPage } from './pages/DocumentChunksPage';
+import { DocumentsDatabasePage } from './pages/DocumentsDatabasePage';
 import { DocumentsPage } from './pages/DocumentsPage';
 
 const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
@@ -20,6 +22,9 @@ export default function App() {
         </div>
         <nav className="nav-card" aria-label="Primary navigation">
           <NavLink className={navLinkClassName} to="/">
+            Intake
+          </NavLink>
+          <NavLink className={navLinkClassName} to="/documents">
             Documents
           </NavLink>
           <NavLink className={navLinkClassName} to="/ask">
@@ -31,7 +36,9 @@ export default function App() {
       <main className="page-frame">
         <Routes>
           <Route path="/" element={<DocumentsPage />} />
+          <Route path="/documents" element={<DocumentsDatabasePage />} />
           <Route path="/documents/:documentId" element={<DocumentDetailsPage />} />
+          <Route path="/documents/:documentId/chunks" element={<DocumentChunksPage />} />
           <Route path="/ask" element={<AskPage />} />
         </Routes>
       </main>
