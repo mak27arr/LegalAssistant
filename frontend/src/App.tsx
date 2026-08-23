@@ -14,11 +14,7 @@ export default function App() {
       <header className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Legal Assistant</p>
-          <h1>Operator console for ingestion and grounded answers.</h1>
-          <p className="hero-text">
-            The first frontend iteration stays inside the current backend contract: two focused workflows,
-            zero unapproved API changes.
-          </p>
+          <h1>Operator console</h1>
         </div>
         <nav className="nav-card" aria-label="Primary navigation">
           <NavLink className={navLinkClassName} to="/">
