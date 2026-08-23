@@ -9,6 +9,7 @@ import { StatusPill } from '../shared/ui/StatusPill';
 const trackedAskJobsKey = 'legal-assistant.ask.jobs';
 const conversationIdKey = 'legal-assistant.ask.conversation-id';
 const actorKeyStorageKey = 'legal-assistant.ask.actor-key';
+const maxRecentAskJobs = 5;
 
 interface AskDraft {
   question: string;
@@ -20,12 +21,44 @@ const initialDraft: AskDraft = {
   topK: 5
 };
 
+function isValidAskJob(value: unknown): value is AskJobResponse {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<AskJobResponse>;
+  const updatedAt =
+    typeof candidate.updatedAt === 'string' && !Number.isNaN(Date.parse(candidate.updatedAt));
+
+  return typeof candidate.jobId === 'string'
+    && candidate.jobId.trim().length > 0
+    && typeof candidate.status === 'string'
+    && typeof candidate.question === 'string'
+    && candidate.question.trim().length > 0
+    && updatedAt;
+}
+
+function readStoredJobs(): AskJobResponse[] {
+  return readStorage<unknown[]>(trackedAskJobsKey, []).filter(isValidAskJob);
+}
+
 export function AskPage() {
   const [draft, setDraft] = useState(initialDraft);
-  const [jobs, setJobs] = useState<AskJobResponse[]>(() => readStorage(trackedAskJobsKey, [] as AskJobResponse[]));
+  const [jobs, setJobs] = useState<AskJobResponse[]>(readStoredJobs);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const eventSourcesRef = useRef<Map<string, EventSource>>(new Map());
+
+  useEffect(() => {
+    const sanitized = readStoredJobs();
+    setJobs((current) => {
+      if (current.length === sanitized.length) {
+        return current;
+      }
+
+      return sanitized;
+    });
+  }, []);
 
   useEffect(() => {
     writeStorage(trackedAskJobsKey, jobs);
@@ -33,6 +66,10 @@ export function AskPage() {
 
   useEffect(() => {
     jobs.forEach((job) => {
+      if (!job.jobId) {
+        return;
+      }
+
       if (job.status !== 'Completed' && job.status !== 'Failed' && !eventSourcesRef.current.has(job.jobId)) {
         attachStream(job.jobId);
       }
@@ -48,11 +85,15 @@ export function AskPage() {
     setJobs((current) => {
       const next = [job, ...current.filter((item) => item.jobId !== job.jobId)];
       next.sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
-      return next.slice(0, 12);
+      return next.slice(0, maxRecentAskJobs);
     });
   }
 
   function attachStream(jobId: string) {
+    if (!jobId.trim()) {
+      return;
+    }
+
     const source = createAskEventStream(jobId);
     eventSourcesRef.current.set(jobId, source);
 
