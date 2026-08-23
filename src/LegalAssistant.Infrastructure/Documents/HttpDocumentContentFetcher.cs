@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LegalAssistant.Application.Documents.Services;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace LegalAssistant.Infrastructure.Documents;
@@ -14,17 +15,20 @@ public sealed class HttpDocumentContentFetcher : IDocumentContentFetcher
 {
     private readonly HttpClient _httpClient;
     private readonly IHtmlToTextConverter _htmlToText;
+    private readonly ILogger<HttpDocumentContentFetcher> _logger;
     private readonly DocumentFetchOptions _options;
     private readonly IDocumentUrlValidator _urlValidator;
 
     public HttpDocumentContentFetcher(
         HttpClient httpClient,
         IHtmlToTextConverter htmlToText,
+        ILogger<HttpDocumentContentFetcher> logger,
         IOptions<DocumentFetchOptions> options,
         IDocumentUrlValidator urlValidator)
     {
         _httpClient = httpClient;
         _htmlToText = htmlToText;
+        _logger = logger;
         _options = options.Value;
         _urlValidator = urlValidator;
     }
@@ -38,13 +42,33 @@ public sealed class HttpDocumentContentFetcher : IDocumentContentFetcher
 
         using var timeoutCts = CreateTimeoutCancellationTokenSource(cancellationToken);
         using var resp = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+
+        var finalUri = resp.RequestMessage?.RequestUri?.ToString() ?? url;
+        var contentType = resp.Content.Headers.ContentType?.ToString() ?? "(none)";
+        _logger.LogInformation(
+            "Fetched document response. url={Url} finalUri={FinalUri} statusCode={StatusCode} contentType={ContentType}",
+            url,
+            finalUri,
+            (int)resp.StatusCode,
+            contentType);
+
         if (!resp.IsSuccessStatusCode)
+        {
+            var errorBody = await TryReadFailureBodyAsync(resp, timeoutCts.Token);
+            _logger.LogWarning(
+                "Document fetch returned non-success status. url={Url} finalUri={FinalUri} statusCode={StatusCode} contentType={ContentType} bodyPreview={BodyPreview}",
+                url,
+                finalUri,
+                (int)resp.StatusCode,
+                contentType,
+                errorBody);
             return null;
+        }
 
-        var contentType = resp.Content.Headers.ContentType?.MediaType;
         var body = await ReadBodyAsync(resp, timeoutCts.Token);
+        var mediaType = resp.Content.Headers.ContentType?.MediaType;
 
-        if (!string.IsNullOrWhiteSpace(contentType) && !contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(mediaType) && !mediaType.Contains("html", StringComparison.OrdinalIgnoreCase))
             return NormalizeText(body);
 
         return NormalizeText(_htmlToText.Convert(body));
@@ -72,8 +96,29 @@ public sealed class HttpDocumentContentFetcher : IDocumentContentFetcher
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
+    private async Task<string> TryReadFailureBodyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var body = await ReadBodyAsync(response, cancellationToken);
+            return Abbreviate(NormalizeText(body), 600);
+        }
+        catch (Exception ex)
+        {
+            return $"<failed to read body: {ex.GetType().Name}: {ex.Message}>";
+        }
+    }
+
     private static string NormalizeText(string text)
         => string.IsNullOrEmpty(text) ? text : text.Replace("\0", string.Empty);
+
+    private static string Abbreviate(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+
+        return text[..maxLength] + "...";
+    }
 
     private static async Task<byte[]> ReadBytesWithLimitAsync(Stream stream, long maxBytes, CancellationToken cancellationToken)
     {

@@ -1,4 +1,5 @@
 using LegalAssistant.Api.Dtos.Documents;
+using LegalAssistant.Api.Mappers;
 using LegalAssistant.Application.Documents.Services;
 using LegalAssistant.Application.Documents.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -10,17 +11,17 @@ namespace LegalAssistant.Api.Controllers;
 public sealed class DocumentsController : ControllerBase
 {
     private readonly IDocumentCommandService _commands;
+    private readonly IDocumentQueryService _queries;
     private readonly IDocumentStatsQueryService _stats;
-    private readonly LegalAssistant.Application.Documents.IDocumentRepository _documents;
 
     public DocumentsController(
         IDocumentCommandService commands,
-        IDocumentStatsQueryService stats,
-        LegalAssistant.Application.Documents.IDocumentRepository documents)
+        IDocumentQueryService queries,
+        IDocumentStatsQueryService stats)
     {
         _commands = commands;
+        _queries = queries;
         _stats = stats;
-        _documents = documents;
     }
 
     [HttpPost]
@@ -31,11 +32,18 @@ public sealed class DocumentsController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<DocumentDetailsDto>> Get(Guid id, CancellationToken cancellationToken)
     {
-        var doc = await _documents.GetByIdWithChunksAsync(id, cancellationToken);
+        var doc = await _queries.GetByIdAsync(id, cancellationToken);
         if (doc == null) return NotFound();
-        return Ok(new DocumentDto(doc.Id, doc.Title, doc.Url, doc.Content, doc.Metadata, doc.Version));
+        return Ok(DocumentMapper.Map(doc));
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<DocumentListItemDto>>> List(CancellationToken cancellationToken)
+    {
+        var documents = await _queries.GetListAsync(cancellationToken);
+        return Ok(documents.Select(DocumentMapper.Map).ToList());
     }
 
     [HttpGet("stats")]
