@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 using LegalAssistant.Infrastructure.Chunking;
 using LegalAssistant.Application.Ask.Services;
 using LegalAssistant.Application.Ask;
@@ -46,7 +47,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IHtmlToTextConverter, StructuredHtmlToTextConverter>();
         services.Configure<DocumentFetchOptions>(configuration.GetSection("Documents:Fetch"));
         services.AddSingleton<IDocumentUrlValidator, DocumentUrlValidator>();
-        services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>();
+        services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
+            });
 
         // Ask embeddings/chunk search client implemented in Infrastructure
         services.AddScoped<IChunkSearchService, ChunkSearchService>();
