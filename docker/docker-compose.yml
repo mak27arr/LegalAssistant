@@ -103,6 +103,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       UseRabbitMq: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}
+      RABBITMQ_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
       Embeddings__BaseUrl: ${EMBEDDINGS_BASE_URL:-http://embeddings}
       Ollama__BaseUrl: ${OLLAMA_BASE_URL:-http://ollama:11434}
       Ollama__LlmModel: ${OLLAMA_LLM_MODEL:-llama3:8b}
