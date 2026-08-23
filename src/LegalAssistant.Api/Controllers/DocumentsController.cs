@@ -1,5 +1,7 @@
 using LegalAssistant.Api.Dtos.Documents;
+using LegalAssistant.Api.Dtos.Chunks;
 using LegalAssistant.Api.Mappers;
+using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Documents.Services;
 using LegalAssistant.Application.Documents.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -12,15 +14,18 @@ public sealed class DocumentsController : ControllerBase
 {
     private readonly IDocumentCommandService _commands;
     private readonly IDocumentQueryService _queries;
+    private readonly IDocumentChunkQueryService _chunks;
     private readonly IDocumentStatsQueryService _stats;
 
     public DocumentsController(
         IDocumentCommandService commands,
         IDocumentQueryService queries,
+        IDocumentChunkQueryService chunks,
         IDocumentStatsQueryService stats)
     {
         _commands = commands;
         _queries = queries;
+        _chunks = chunks;
         _stats = stats;
     }
 
@@ -44,6 +49,20 @@ public sealed class DocumentsController : ControllerBase
     {
         var documents = await _queries.GetListAsync(cancellationToken);
         return Ok(documents.Select(DocumentMapper.Map).ToList());
+    }
+
+    [HttpGet("{id}/chunks")]
+    public async Task<ActionResult<ChunkPageResponse>> GetChunks(
+        Guid id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _chunks.GetByDocumentIdAsync(id, page, pageSize, cancellationToken);
+        if (result == null)
+            return NotFound();
+
+        return Ok(ChunkMapper.Map(result));
     }
 
     [HttpGet("stats")]

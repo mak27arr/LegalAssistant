@@ -83,6 +83,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IAskJobEventPublisher, RabbitMqAskJobEventPublisher>();
         services.AddScoped<IDocumentRepository, EfDocumentRepository>();
         services.AddScoped<IDocumentQueryService, DocumentQueryService>();
+        services.AddScoped<IDocumentChunkQueryService, DocumentChunkQueryService>();
         services.AddScoped<IDocumentStatsQueryService, DocumentStatsQueryService>();
         services.AddScoped<IJobRepository, EfJobRepository>();
         services.AddScoped<IJobQueue, EfJobQueue>();
