@@ -60,7 +60,7 @@ public sealed class RagAnswerService : IRagAnswerService
         }
 
         var answer = await _llm.GenerateAsync(built.Prompt, cancellationToken);
-        var validation = _validator.Validate(answer, built.Sources);
+        var validation = _validator.Validate(built.Question, answer, built.Sources);
 
         if (!validation.IsValid)
         {

@@ -4,5 +4,5 @@ namespace LegalAssistant.Application.Rag.Services;
 
 public interface IRagAnswerValidator
 {
-    RagAnswerValidationResult Validate(string answer, IReadOnlyList<RagAnswerSource> sources);
+    RagAnswerValidationResult Validate(string question, string answer, IReadOnlyList<RagAnswerSource> sources);
 }

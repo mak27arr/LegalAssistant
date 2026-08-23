@@ -7,7 +7,7 @@ public sealed class DefaultRagAnswerValidator : IRagAnswerValidator
 {
     private static readonly Regex CitationRegex = new(@"\[(\d+)\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    public RagAnswerValidationResult Validate(string answer, IReadOnlyList<RagAnswerSource> sources)
+    public RagAnswerValidationResult Validate(string question, string answer, IReadOnlyList<RagAnswerSource> sources)
     {
         var issues = new List<string>();
         var citations = new HashSet<int>();

@@ -1,5 +1,4 @@
 using LegalAssistant.Application.Embeddings;
-using LegalAssistant.Application.Ask.Models;
 using Microsoft.Extensions.Logging;
 
 namespace LegalAssistant.Application.Ask;
