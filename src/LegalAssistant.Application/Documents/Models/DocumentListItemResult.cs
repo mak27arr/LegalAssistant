@@ -7,4 +7,5 @@ public sealed record DocumentListItemResult(
     int Version,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    int ChunkCount);
+    int ChunkCount,
+    string? ProcessingStatus);

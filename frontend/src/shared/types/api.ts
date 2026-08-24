@@ -26,6 +26,17 @@ export interface DocumentListItemResponse {
   createdAt: string;
   updatedAt: string;
   chunkCount: number;
+  processingStatus: string | null;
+}
+
+export interface DocumentListPageResponse {
+  items: DocumentListItemResponse[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
 export interface DocumentDetailsResponse {

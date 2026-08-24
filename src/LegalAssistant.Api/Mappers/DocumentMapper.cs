@@ -13,7 +13,18 @@ public static class DocumentMapper
             document.Version,
             document.CreatedAt,
             document.UpdatedAt,
-            document.ChunkCount);
+            document.ChunkCount,
+            document.ProcessingStatus);
+
+    public static DocumentListPageDto Map(DocumentListPageResult page)
+        => new(
+            page.Items.Select(Map).ToList(),
+            page.Page,
+            page.PageSize,
+            page.TotalItems,
+            page.TotalPages,
+            page.HasNextPage,
+            page.HasPreviousPage);
 
     public static DocumentDetailsDto Map(DocumentDetailsResult document)
         => new(

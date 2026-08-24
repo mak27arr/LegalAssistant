@@ -3,6 +3,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LegalAssistant.Application.Jobs.Services;
+using LegalAssistant.Logging.Correlation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -71,6 +72,12 @@ public sealed class RabbitMqIngestConsumerHostedService : BackgroundService
                     try
                     {
                         using var scope = _sp.CreateScope();
+                        using var correlationScope = CorrelationLogScopeFactory.Create(
+                            scope.ServiceProvider,
+                            _logger,
+                            corr,
+                            nameof(RabbitMqIngestConsumerHostedService));
+
                         var processor = scope.ServiceProvider.GetRequiredService<IIngestJobProcessor>();
 
                         if (Guid.TryParse(corr, out var jobId))

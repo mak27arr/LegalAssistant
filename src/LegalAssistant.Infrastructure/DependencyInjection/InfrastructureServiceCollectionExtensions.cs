@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
+using System.Net.Http.Headers;
 using LegalAssistant.Infrastructure.Chunking;
 using LegalAssistant.Application.Ask.Services;
 using LegalAssistant.Application.Ask;
@@ -47,7 +48,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IHtmlToTextConverter, StructuredHtmlToTextConverter>();
         services.Configure<DocumentFetchOptions>(configuration.GetSection("Documents:Fetch"));
         services.AddSingleton<IDocumentUrlValidator, DocumentUrlValidator>();
-        services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>()
+        services.AddSingleton<IDocumentHtmlParser, ZakonRadaDocumentParser>();
+        services.AddHttpClient<IDocumentContentFetcher, HttpDocumentContentFetcher>(client =>
+            {
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; LegalAssistant/1.0; +https://local)");
+                client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("uk-UA"));
+                client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("uk", 0.9));
+                client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("en", 0.8));
+            })
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
             {
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli

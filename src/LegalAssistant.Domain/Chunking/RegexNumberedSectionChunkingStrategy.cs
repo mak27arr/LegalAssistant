@@ -24,6 +24,9 @@ public sealed class RegexNumberedSectionChunkingStrategy : IChunkingStrategy
         var matches = _sectionRegex.Matches(text);
         if (matches.Count == 0) yield break;
 
+        foreach (var preambleRange in SplitByParagraphsOrFixed(text, 0, matches[0].Index))
+            yield return preambleRange;
+
         for (int i = 0; i < matches.Count; i++)
         {
             int start = matches[i].Index;

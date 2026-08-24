@@ -1,7 +1,7 @@
 using LegalAssistant.Application.Common;
-using LegalAssistant.Core.Correlation;
 using LegalAssistant.Domain.Models;
 using LegalAssistant.Infrastructure.Db;
+using LegalAssistant.Logging.Correlation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -97,14 +97,15 @@ public sealed class RabbitMqEmbeddingCompletedConsumerHostedService : Background
                                 ?? msg.ChunkId.ToString("N");
 
             using var scope = _sp.CreateScope();
-            var correlation = scope.ServiceProvider.GetRequiredService<ICorrelationContext>();
-            correlation.CorrelationId = correlationId;
-
-            using var __ = _logger.BeginScope(new System.Collections.Generic.Dictionary<string, object>
-            {
-                ["correlationId"] = correlationId,
-                ["chunkId"] = msg.ChunkId
-            });
+            using var correlationScope = CorrelationLogScopeFactory.Create(
+                scope.ServiceProvider,
+                _logger,
+                correlationId,
+                nameof(RabbitMqEmbeddingCompletedConsumerHostedService),
+                new Dictionary<string, object?>
+                {
+                    ["chunkId"] = msg.ChunkId
+                });
 
             _logger.LogInformation("Received embeddings:completed. VectorDimensions={Dimensions}", msg.Vector.Length);
 

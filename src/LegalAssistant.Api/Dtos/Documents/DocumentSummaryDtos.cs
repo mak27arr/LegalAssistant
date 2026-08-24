@@ -7,7 +7,17 @@ public sealed record DocumentListItemDto(
     int Version,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    int ChunkCount);
+    int ChunkCount,
+    string? ProcessingStatus);
+
+public sealed record DocumentListPageDto(
+    IReadOnlyList<DocumentListItemDto> Items,
+    int Page,
+    int PageSize,
+    int TotalItems,
+    int TotalPages,
+    bool HasNextPage,
+    bool HasPreviousPage);
 
 public sealed record DocumentDetailsDto(
     Guid Id,

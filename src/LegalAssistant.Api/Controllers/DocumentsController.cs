@@ -45,10 +45,13 @@ public sealed class DocumentsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<DocumentListItemDto>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<DocumentListPageDto>> List(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        var documents = await _queries.GetListAsync(cancellationToken);
-        return Ok(documents.Select(DocumentMapper.Map).ToList());
+        var documents = await _queries.GetListAsync(page, pageSize, cancellationToken);
+        return Ok(DocumentMapper.Map(documents));
     }
 
     [HttpGet("{id}/chunks")]

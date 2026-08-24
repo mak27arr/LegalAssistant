@@ -2,23 +2,31 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getDocuments } from '../shared/api/client';
 import type { DocumentListItemResponse } from '../shared/types/api';
+import { StatusPill } from '../shared/ui/StatusPill';
 
 export function DocumentsDatabasePage() {
   const navigate = useNavigate();
   const [documents, setDocuments] = useState<DocumentListItemResponse[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    void loadDocuments();
-  }, []);
+    void loadDocuments(page);
+  }, [page]);
 
-  async function loadDocuments() {
+  async function loadDocuments(nextPage: number) {
     setIsLoading(true);
     setError(null);
 
     try {
-      setDocuments(await getDocuments());
+      const result = await getDocuments(nextPage, 20);
+      setDocuments(result.items);
+      setPage(result.page);
+      setTotalPages(result.totalPages);
+      setTotalItems(result.totalItems);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to load documents.');
     } finally {
@@ -40,10 +48,12 @@ export function DocumentsDatabasePage() {
         <Link className="button-secondary" to="/">
           Back to intake
         </Link>
-        <button className="button-secondary" type="button" onClick={() => void loadDocuments()}>
+        <button className="button-secondary" type="button" onClick={() => void loadDocuments(page)}>
           {isLoading ? 'Refreshing...' : 'Refresh list'}
         </button>
       </div>
+
+      <p className="muted">Total documents: {totalItems}</p>
 
       {error ? <div className="inline-error">{error}</div> : null}
 
@@ -57,6 +67,7 @@ export function DocumentsDatabasePage() {
             <thead>
               <tr>
                 <th>Title</th>
+                <th>Status</th>
                 <th>Version</th>
                 <th>Chunks</th>
                 <th>Updated</th>
@@ -76,20 +87,45 @@ export function DocumentsDatabasePage() {
                   }}
                   role="button"
                   tabIndex={0}
-                >
-                  <td>
-                    <strong>{document.title}</strong>
-                    <div className="table-subtitle">{document.url}</div>
-                  </td>
-                  <td>{document.version}</td>
-                  <td>{document.chunkCount}</td>
-                  <td>{new Date(document.updatedAt).toLocaleString()}</td>
-                </tr>
-              ))}
+                  >
+                    <td>
+                      <strong>{document.title}</strong>
+                      <div className="table-subtitle">{document.url}</div>
+                    </td>
+                    <td>
+                      {document.processingStatus ? <StatusPill status={document.processingStatus} /> : <span className="muted">Unknown</span>}
+                    </td>
+                    <td>{document.version}</td>
+                    <td>{document.chunkCount}</td>
+                    <td>{new Date(document.updatedAt).toLocaleString()}</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <div className="button-row">
+        <button
+          className="button-secondary"
+          disabled={page <= 1 || isLoading}
+          type="button"
+          onClick={() => setPage((current) => Math.max(1, current - 1))}
+        >
+          Previous
+        </button>
+        <span className="page-indicator">
+          Page {page} of {totalPages}
+        </span>
+        <button
+          className="button-secondary"
+          disabled={page >= totalPages || isLoading}
+          type="button"
+          onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+        >
+          Next
+        </button>
+      </div>
     </section>
   );
 }

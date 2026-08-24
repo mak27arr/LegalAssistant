@@ -6,6 +6,7 @@ import type {
   ChunkPageResponse,
   DocumentDetailsResponse,
   DocumentListItemResponse,
+  DocumentListPageResponse,
   CreateDocumentRequest,
   CreateDocumentResponse,
   DocumentStatsResponse,
@@ -57,8 +58,8 @@ export function getDocumentStats() {
   return request<DocumentStatsResponse>('/api/documents/stats');
 }
 
-export function getDocuments() {
-  return request<DocumentListItemResponse[]>('/api/documents');
+export function getDocuments(page = 1, pageSize = 20) {
+  return request<DocumentListPageResponse>(`/api/documents?page=${page}&pageSize=${pageSize}`);
 }
 
 export function getDocument(documentId: string) {

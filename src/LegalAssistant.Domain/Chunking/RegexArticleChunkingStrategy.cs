@@ -23,6 +23,9 @@ public sealed class RegexArticleChunkingStrategy : IChunkingStrategy
         var matches = _articleRegex.Matches(text);
         if (matches.Count == 0) yield break;
 
+        foreach (var preambleRange in SplitRange(0, matches[0].Index))
+            yield return preambleRange;
+
         for (int i = 0; i < matches.Count; i++)
         {
             int start = matches[i].Index;
@@ -32,14 +35,22 @@ public sealed class RegexArticleChunkingStrategy : IChunkingStrategy
             if (length <= 0)
                 continue;
 
-            // Split large articles into fixed-size segments
-            int localIdx = 0;
-            while (localIdx < length)
-            {
-                var len = Math.Min(_maxChunkSize, length - localIdx);
-                yield return new ChunkRange(start + localIdx, len);
-                localIdx += len;
-            }
+            foreach (var chunkRange in SplitRange(start, length))
+                yield return chunkRange;
+        }
+    }
+
+    private IEnumerable<ChunkRange> SplitRange(int start, int length)
+    {
+        if (length <= 0)
+            yield break;
+
+        var localIdx = 0;
+        while (localIdx < length)
+        {
+            var len = Math.Min(_maxChunkSize, length - localIdx);
+            yield return new ChunkRange(start + localIdx, len);
+            localIdx += len;
         }
     }
 }
