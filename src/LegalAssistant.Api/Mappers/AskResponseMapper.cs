@@ -21,8 +21,8 @@ public static class AskResponseMapper
             eventRecord.ConversationId,
             eventRecord.Error,
             string.IsNullOrWhiteSpace(eventRecord.ResultJson) ? null : JsonSerializer.Deserialize<LegalAssistant.Application.Rag.Models.RagAnswerResult>(eventRecord.ResultJson),
-            eventRecord.OccurredAtUtc,
-            eventRecord.CreatedAt);
+            eventRecord.CreatedAt,
+            eventRecord.OccurredAtUtc);
 
     private static AskJobResponse Map(
         Guid jobId,

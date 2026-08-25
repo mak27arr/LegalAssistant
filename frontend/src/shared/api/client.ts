@@ -5,7 +5,6 @@ import type {
   ChunkDetailsResponse,
   ChunkPageResponse,
   DocumentDetailsResponse,
-  DocumentListItemResponse,
   DocumentListPageResponse,
   CreateDocumentRequest,
   CreateDocumentResponse,

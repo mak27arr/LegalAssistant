@@ -5,6 +5,8 @@ using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Ask.Models;
 using LegalAssistant.Domain.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace LegalAssistant.Api.Services;
 
@@ -12,11 +14,16 @@ public sealed class AskJobEventStreamService : IAskJobEventStreamService
 {
     private readonly IAskJobEventQueryService _events;
     private readonly IAskJobEventFanout _fanout;
+    private readonly JsonSerializerOptions _jsonSerializerOptions;
 
-    public AskJobEventStreamService(IAskJobEventQueryService events, IAskJobEventFanout fanout)
+    public AskJobEventStreamService(
+        IAskJobEventQueryService events,
+        IAskJobEventFanout fanout,
+        IOptions<JsonOptions> jsonOptions)
     {
         _events = events;
         _fanout = fanout;
+        _jsonSerializerOptions = jsonOptions.Value.JsonSerializerOptions;
     }
 
     public async Task StreamAsync(Guid jobId, HttpContext httpContext, CancellationToken cancellationToken = default)
@@ -72,10 +79,10 @@ public sealed class AskJobEventStreamService : IAskJobEventStreamService
         }
     }
 
-    private static async Task WriteEventAsync(HttpResponse response, AskJobEventRecord eventRecord, CancellationToken cancellationToken)
+    private async Task WriteEventAsync(HttpResponse response, AskJobEventRecord eventRecord, CancellationToken cancellationToken)
     {
         var payload = AskResponseMapper.Map(eventRecord);
-        var json = JsonSerializer.Serialize(payload);
+        var json = JsonSerializer.Serialize(payload, _jsonSerializerOptions);
         await response.WriteAsync($"id: {eventRecord.Id}\n", cancellationToken);
         await response.WriteAsync($"event: {eventRecord.Status.ToString().ToLowerInvariant()}\n", cancellationToken);
         await response.WriteAsync($"data: {json}\n\n", cancellationToken);

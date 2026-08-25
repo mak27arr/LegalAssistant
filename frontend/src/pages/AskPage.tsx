@@ -21,6 +21,152 @@ const initialDraft: AskDraft = {
   topK: 5
 };
 
+function normalizeAskJobResponse(value: unknown): AskJobResponse | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const result =
+    candidate.result && typeof candidate.result === 'object'
+      ? candidate.result
+      : candidate.Result && typeof candidate.Result === 'object'
+        ? candidate.Result
+        : null;
+  const resultCandidate = result as Record<string, unknown> | null;
+  const normalizedResult =
+    resultCandidate
+      ? {
+          question:
+            typeof resultCandidate.Question === 'string'
+              ? resultCandidate.Question
+              : typeof resultCandidate.question === 'string'
+                ? resultCandidate.question
+                : '',
+          answer:
+            typeof resultCandidate.Answer === 'string'
+              ? resultCandidate.Answer
+              : typeof resultCandidate.answer === 'string'
+                ? resultCandidate.answer
+                : '',
+          isGrounded:
+            typeof resultCandidate.IsGrounded === 'boolean'
+              ? resultCandidate.IsGrounded
+              : typeof resultCandidate.isGrounded === 'boolean'
+                ? resultCandidate.isGrounded
+                : false
+        }
+      : null;
+
+  return {
+    jobId: typeof candidate.jobId === 'string' ? candidate.jobId : typeof candidate.JobId === 'string' ? candidate.JobId : '',
+    status: typeof candidate.status === 'string' ? candidate.status : typeof candidate.Status === 'string' ? candidate.Status : '',
+    actorScopeKey:
+      typeof candidate.actorScopeKey === 'string'
+        ? candidate.actorScopeKey
+        : typeof candidate.ActorScopeKey === 'string'
+          ? candidate.ActorScopeKey
+          : '',
+    idempotencyKey:
+      typeof candidate.idempotencyKey === 'string'
+        ? candidate.idempotencyKey
+        : typeof candidate.IdempotencyKey === 'string'
+          ? candidate.IdempotencyKey
+          : '',
+    question: typeof candidate.question === 'string' ? candidate.question : typeof candidate.Question === 'string' ? candidate.Question : '',
+    topK: typeof candidate.topK === 'number' ? candidate.topK : typeof candidate.TopK === 'number' ? candidate.TopK : 0,
+    conversationId:
+      typeof candidate.conversationId === 'string'
+        ? candidate.conversationId
+        : typeof candidate.ConversationId === 'string'
+          ? candidate.ConversationId
+          : null,
+    error: typeof candidate.error === 'string' ? candidate.error : typeof candidate.Error === 'string' ? candidate.Error : null,
+    result: normalizedResult,
+    createdAt:
+      typeof candidate.createdAt === 'string'
+        ? candidate.createdAt
+        : typeof candidate.CreatedAt === 'string'
+          ? candidate.CreatedAt
+          : '',
+    updatedAt:
+      typeof candidate.updatedAt === 'string'
+        ? candidate.updatedAt
+        : typeof candidate.UpdatedAt === 'string'
+          ? candidate.UpdatedAt
+          : ''
+  };
+}
+
+function getJobTimestamp(job: AskJobResponse) {
+  const updatedAt = Date.parse(job.updatedAt);
+  if (!Number.isNaN(updatedAt)) {
+    return updatedAt;
+  }
+
+  const createdAt = Date.parse(job.createdAt);
+  return Number.isNaN(createdAt) ? 0 : createdAt;
+}
+
+function getJobStatusRank(status: string) {
+  switch (status) {
+    case 'Queued':
+      return 1;
+    case 'InProgress':
+      return 2;
+    case 'Completed':
+    case 'Failed':
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+function shouldReplaceJob(current: AskJobResponse | undefined, incoming: AskJobResponse) {
+  if (!current) {
+    return true;
+  }
+
+  const currentTimestamp = getJobTimestamp(current);
+  const incomingTimestamp = getJobTimestamp(incoming);
+  if (incomingTimestamp !== currentTimestamp) {
+    return incomingTimestamp > currentTimestamp;
+  }
+
+  const currentRank = getJobStatusRank(current.status);
+  const incomingRank = getJobStatusRank(incoming.status);
+  if (incomingRank !== currentRank) {
+    return incomingRank > currentRank;
+  }
+
+  if (!current.result && incoming.result) {
+    return true;
+  }
+
+  if (current.result && !incoming.result) {
+    return false;
+  }
+
+  return true;
+}
+
+function mergeJobs(current: AskJobResponse | undefined, incoming: AskJobResponse): AskJobResponse {
+  if (!current) {
+    return incoming;
+  }
+
+  if (!shouldReplaceJob(current, incoming)) {
+    return current;
+  }
+
+  return {
+    ...current,
+    ...incoming,
+    error: incoming.error ?? current.error,
+    result: incoming.result ?? current.result
+  };
+}
+
 function isValidAskJob(value: unknown): value is AskJobResponse {
   if (!value || typeof value !== 'object') {
     return false;
@@ -76,13 +222,46 @@ export function AskPage() {
       if (job.status !== 'Completed' && job.status !== 'Failed' && !eventSourcesRef.current.has(job.jobId)) {
         attachStream(job.jobId);
       }
+      if ((job.status === 'Completed' || job.status === 'Failed') && eventSourcesRef.current.has(job.jobId)) {
+        eventSourcesRef.current.get(job.jobId)?.close();
+        eventSourcesRef.current.delete(job.jobId);
+      }
     });
+  }, [jobs]);
 
+  useEffect(() => {
+    const activeJobs = jobs.filter((job) => job.jobId && job.status !== 'Completed' && job.status !== 'Failed');
+    if (activeJobs.length === 0) {
+      return;
+    }
+
+    const poll = () => {
+      void Promise.all(
+        activeJobs.map(async (job) => {
+          try {
+            const freshJob = await getAskJob(job.jobId);
+            updateJob(freshJob);
+          } catch {
+            return;
+          }
+        }),
+      );
+    };
+
+    void poll();
+    const intervalId = window.setInterval(poll, 3000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [jobs]);
+
+  useEffect(() => {
     return () => {
       eventSourcesRef.current.forEach((source) => source.close());
       eventSourcesRef.current.clear();
     };
-  }, [jobs]);
+  }, []);
 
   function updateJob(job: AskJobResponse) {
     if (!isValidAskJob(job)) {
@@ -90,7 +269,9 @@ export function AskPage() {
     }
 
     setJobs((current) => {
-      const next = [job, ...current.filter((item) => item.jobId !== job.jobId)];
+      const existing = current.find((item) => item.jobId === job.jobId);
+      const nextJob = mergeJobs(existing, job);
+      const next = [nextJob, ...current.filter((item) => item.jobId !== job.jobId)];
       next.sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
       return next.slice(0, maxRecentAskJobs);
     });
@@ -105,7 +286,18 @@ export function AskPage() {
     eventSourcesRef.current.set(jobId, source);
 
     const upsertFromEvent = (event: MessageEvent<string>) => {
-      const payload = JSON.parse(event.data) as AskJobResponse;
+      let payload: AskJobResponse | null = null;
+
+      try {
+        payload = normalizeAskJobResponse(JSON.parse(event.data));
+      } catch {
+        return;
+      }
+
+      if (!payload) {
+        return;
+      }
+
       updateJob(payload);
 
       if (payload.status === 'Completed' || payload.status === 'Failed') {
@@ -114,6 +306,7 @@ export function AskPage() {
       }
     };
 
+    source.onmessage = upsertFromEvent;
     source.addEventListener('queued', upsertFromEvent);
     source.addEventListener('inprogress', upsertFromEvent);
     source.addEventListener('completed', upsertFromEvent);
@@ -156,7 +349,6 @@ export function AskPage() {
 
       const createdJob = await getAskJob(submission.jobId);
       updateJob(createdJob);
-      attachStream(submission.jobId);
       setDraft(initialDraft);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to submit the question.');
