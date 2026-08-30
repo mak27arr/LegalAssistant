@@ -40,6 +40,7 @@ a {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -193,6 +194,7 @@ textarea {
 }
 
 .field-group input,
+.field-group select,
 .field-group textarea {
   width: 100%;
   border-radius: 16px;
@@ -204,6 +206,7 @@ textarea {
 }
 
 .field-group input:focus,
+.field-group select:focus,
 .field-group textarea:focus {
   outline: none;
   border-color: rgba(157, 64, 33, 0.55);
@@ -531,6 +534,12 @@ textarea {
 .detail-stack {
   display: grid;
   gap: 20px;
+}
+
+.filters-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .detail-value {

@@ -17,27 +17,34 @@ public sealed class AdminControllerTests
     {
         var queryService = new Mock<IAdminUserQueryService>();
         queryService
-            .Setup(x => x.GetUsersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([
-                new AdminUserListItemResult(
-                    Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                    "user@example.com",
-                    "Example User",
-                    true,
-                    new DateTime(2026, 8, 30, 10, 0, 0, DateTimeKind.Utc),
-                    new DateTime(2026, 8, 30, 11, 0, 0, DateTimeKind.Utc),
-                    [RoleNames.User, RoleNames.Admin])
-            ]);
+            .Setup(x => x.GetUsersAsync(It.IsAny<AdminUserListQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AdminUserListPageResult(
+                [
+                    new AdminUserListItemResult(
+                        Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                        "user@example.com",
+                        "Example User",
+                        true,
+                        new DateTime(2026, 8, 30, 10, 0, 0, DateTimeKind.Utc),
+                        new DateTime(2026, 8, 30, 11, 0, 0, DateTimeKind.Utc),
+                        [RoleNames.User, RoleNames.Admin])
+                ],
+                1,
+                20,
+                1,
+                1,
+                false,
+                false));
 
         var roleService = new Mock<IAdminUserRoleService>();
         var managementService = new Mock<IAdminUserManagementService>();
         var controller = new AdminController(queryService.Object, roleService.Object, managementService.Object);
 
-        var result = await controller.GetUsers(CancellationToken.None);
+        var result = await controller.GetUsers(null, null, null, 1, 20, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var payload = Assert.IsAssignableFrom<IReadOnlyList<AdminUserDto>>(ok.Value);
-        var user = Assert.Single(payload);
+        var payload = Assert.IsType<AdminUserPageDto>(ok.Value);
+        var user = Assert.Single(payload.Items);
         Assert.Equal("user@example.com", user.Email);
         Assert.Contains(RoleNames.Admin, user.Roles);
     }

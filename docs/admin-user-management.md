@@ -9,6 +9,10 @@ The admin module is available only to users with the `Admin` role.
 Implemented capabilities:
 
 - list users
+- filter users by status
+- search users by name or email
+- sort users
+- paginate users
 - view a single user
 - list available roles
 - update user roles
@@ -18,6 +22,7 @@ Implemented capabilities:
 ## API
 
 - `GET /api/admin/users`
+  Supports query params: `search`, `status`, `sort`, `page`, `pageSize`
 - `GET /api/admin/users/{userId}`
 - `GET /api/admin/roles`
 - `PUT /api/admin/users/{userId}/roles`

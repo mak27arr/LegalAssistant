@@ -164,6 +164,16 @@ export interface AdminUserResponse {
   roles: string[];
 }
 
+export interface AdminUserPageResponse {
+  items: AdminUserResponse[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
 export interface AdminUserDetailsResponse {
   id: string;
   email: string;

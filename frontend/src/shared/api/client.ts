@@ -1,6 +1,7 @@
 import type {
   AskAsyncRequest,
   AdminUserDetailsResponse,
+  AdminUserPageResponse,
   AdminRoleResponse,
   AdminUserResponse,
   AuthConfigResponse,
@@ -102,8 +103,37 @@ export function getCurrentUser() {
   return request<AuthMeResponse>('/api/auth/me');
 }
 
-export function getAdminUsers() {
-  return request<AdminUserResponse[]>('/api/admin/users');
+export function getAdminUsers(params?: {
+  search?: string;
+  status?: string;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const query = new URLSearchParams();
+
+  if (params?.search) {
+    query.set('search', params.search);
+  }
+
+  if (params?.status) {
+    query.set('status', params.status);
+  }
+
+  if (params?.sort) {
+    query.set('sort', params.sort);
+  }
+
+  if (params?.page) {
+    query.set('page', String(params.page));
+  }
+
+  if (params?.pageSize) {
+    query.set('pageSize', String(params.pageSize));
+  }
+
+  const suffix = query.size > 0 ? `?${query.toString()}` : '';
+  return request<AdminUserPageResponse>(`/api/admin/users${suffix}`);
 }
 
 export function getAdminRoles() {

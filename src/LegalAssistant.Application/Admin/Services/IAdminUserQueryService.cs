@@ -4,6 +4,6 @@ namespace LegalAssistant.Application.Admin.Services;
 
 public interface IAdminUserQueryService
 {
-    Task<IReadOnlyList<AdminUserListItemResult>> GetUsersAsync(CancellationToken cancellationToken = default);
+    Task<AdminUserListPageResult> GetUsersAsync(AdminUserListQuery query, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AdminRoleResult>> GetRolesAsync(CancellationToken cancellationToken = default);
 }

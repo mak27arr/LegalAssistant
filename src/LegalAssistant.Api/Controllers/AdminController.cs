@@ -28,10 +28,23 @@ public sealed class AdminController : ControllerBase
     }
 
     [HttpGet("users")]
-    public async Task<ActionResult<IReadOnlyList<AdminUserDto>>> GetUsers(CancellationToken cancellationToken)
+    public async Task<ActionResult<AdminUserPageDto>> GetUsers(
+        [FromQuery] string? search,
+        [FromQuery] string? status,
+        [FromQuery] string? sort,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        var users = await _queries.GetUsersAsync(cancellationToken);
-        return Ok(users.Select(MapUser).ToList());
+        var result = await _queries.GetUsersAsync(new AdminUserListQuery(search, status, sort, page, pageSize), cancellationToken);
+        return Ok(new AdminUserPageDto(
+            result.Items.Select(MapUser).ToList(),
+            result.Page,
+            result.PageSize,
+            result.TotalItems,
+            result.TotalPages,
+            result.HasNextPage,
+            result.HasPreviousPage));
     }
 
     [HttpGet("roles")]
