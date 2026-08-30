@@ -1,10 +1,12 @@
 using LegalAssistant.Api.Dtos.Jobs;
 using LegalAssistant.Application.Jobs.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LegalAssistant.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public sealed class JobsController : ControllerBase
 {

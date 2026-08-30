@@ -17,6 +17,10 @@ namespace LegalAssistant.Infrastructure.Db
         public DbSet<AskJobEventRecord> AskJobEvents { get; set; }
         public DbSet<OutboxMessageRecord> OutboxMessages { get; set; }
         public DbSet<RagPromptTemplate> RagPromptTemplates { get; set; }
+        public DbSet<User> Users { get; set; }
+        public DbSet<Role> Roles { get; set; }
+        public DbSet<UserRole> UserRoles { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

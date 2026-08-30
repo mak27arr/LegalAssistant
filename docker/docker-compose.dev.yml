@@ -55,6 +55,21 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       LOG_PATH: /var/log/myapp/api.log
       Ollama__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-300}
+      Authentication__PublicApiBaseUrl: ${AUTH_PUBLIC_API_BASE_URL}
+      Authentication__Google__ClientId: ${AUTH_GOOGLE_CLIENT_ID}
+      Authentication__Google__ClientSecret: ${AUTH_GOOGLE_CLIENT_SECRET}
+      Authentication__Google__CallbackPath: ${AUTH_GOOGLE_CALLBACK_PATH}
+      Authentication__Jwt__Issuer: ${AUTH_JWT_ISSUER}
+      Authentication__Jwt__Audience: ${AUTH_JWT_AUDIENCE}
+      Authentication__Jwt__SigningKey: ${AUTH_JWT_SIGNING_KEY}
+      Authentication__Jwt__AccessTokenLifetimeMinutes: ${AUTH_JWT_ACCESS_TOKEN_LIFETIME_MINUTES}
+      Authentication__RefreshToken__LifetimeDays: ${AUTH_REFRESH_TOKEN_LIFETIME_DAYS}
+      Authentication__RefreshToken__CookieName: ${AUTH_REFRESH_TOKEN_COOKIE_NAME}
+      Authentication__RefreshToken__RotateOnUse: ${AUTH_REFRESH_TOKEN_ROTATE_ON_USE}
+      Authentication__Frontend__SuccessRedirectUrl: ${AUTH_FRONTEND_SUCCESS_REDIRECT_URL}
+      Authentication__Frontend__FailureRedirectUrl: ${AUTH_FRONTEND_FAILURE_REDIRECT_URL}
+      Authentication__Bootstrap__AdminEmails__0: ${AUTH_BOOTSTRAP_ADMIN_EMAILS}
+      Cors__AllowedOrigins__0: ${AUTH_CORS_ALLOWED_ORIGINS}
     ports:
       - "5000:80"
     volumes:

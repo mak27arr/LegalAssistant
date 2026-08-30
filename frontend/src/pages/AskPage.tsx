@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../features/auth/AuthContext';
 import { createAskEventStream, getAskJob, submitAskJob } from '../shared/api/client';
 import { generateClientId } from '../shared/lib/ids';
 import { ensureStorageKey, readStorage, writeStorage } from '../shared/lib/storage';
@@ -189,6 +190,7 @@ function readStoredJobs(): AskJobResponse[] {
 }
 
 export function AskPage() {
+  const { status } = useAuth();
   const [draft, setDraft] = useState(initialDraft);
   const [jobs, setJobs] = useState<AskJobResponse[]>(readStoredJobs);
   const [error, setError] = useState<string | null>(null);
@@ -364,6 +366,7 @@ export function AskPage() {
   }
 
   const visibleJobs = jobs.filter(isValidAskJob);
+  const isAuthenticated = status === 'authenticated';
 
   return (
     <div className="page-grid">
@@ -409,9 +412,10 @@ export function AskPage() {
           {error ? <div className="inline-error">{error}</div> : null}
 
           <div className="button-row">
-            <button className="button-primary" disabled={isSubmitting} type="submit">
+            <button className="button-primary" disabled={isSubmitting || !isAuthenticated} type="submit">
               {isSubmitting ? 'Submitting...' : 'Ask question'}
             </button>
+            {!isAuthenticated ? <span className="inline-info">Sign in is required for live ask operations.</span> : null}
             {jobs.length > 0 ? (
               <button className="button-secondary" type="button" onClick={clearJobs}>
                 Clear local history

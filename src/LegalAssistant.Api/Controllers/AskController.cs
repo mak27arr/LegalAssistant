@@ -6,11 +6,13 @@ using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Ask.Models;
 using LegalAssistant.Application.Rag;
 using LegalAssistant.Application.Rag.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LegalAssistant.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public sealed class AskController : ControllerBase
 {
@@ -75,6 +77,7 @@ public sealed class AskController : ControllerBase
     }
 
     [HttpGet("jobs/{jobId:guid}/events")]
+    [AllowAnonymous]
     [Produces("text/event-stream")]
     public Task Events(Guid jobId, CancellationToken cancellationToken)
         => _askJobEvents.StreamAsync(jobId, HttpContext, cancellationToken);

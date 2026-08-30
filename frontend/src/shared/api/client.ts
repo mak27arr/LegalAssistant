@@ -1,5 +1,8 @@
 import type {
   AskAsyncRequest,
+  AuthConfigResponse,
+  AuthMeResponse,
+  AuthRefreshResponse,
   AskJobResponse,
   AskJobSubmissionResponse,
   ChunkDetailsResponse,
@@ -11,8 +14,10 @@ import type {
   DocumentStatsResponse,
   JobResponse
 } from '../types/api';
+import { getAccessToken } from '../../features/auth/session';
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+let refreshPromise: Promise<AuthRefreshResponse> | null = null;
 
 async function readErrorMessage(response: Response): Promise<string> {
   const contentType = response.headers.get('content-type') ?? '';
@@ -26,14 +31,50 @@ async function readErrorMessage(response: Response): Promise<string> {
   return text || `Request failed with status ${response.status}`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function refreshAccessTokenInternal() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${apiBaseUrl}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).then(async (response) => {
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      return (await response.json()) as AuthRefreshResponse;
+    }).finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+}
+
+function isAuthEndpoint(path: string) {
+  return path.startsWith('/api/auth/');
+}
+
+async function request<T>(path: string, init?: RequestInit, allowRefresh = true): Promise<T> {
+  const token = getAccessToken();
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
+    credentials: init?.credentials ?? 'same-origin',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {})
     }
   });
+
+  if (response.status === 401 && allowRefresh && !isAuthEndpoint(path)) {
+    const refreshed = await refreshAccessTokenInternal();
+    const { setAccessToken } = await import('../../features/auth/session');
+    setAccessToken(refreshed.accessToken);
+    return request<T>(path, init, false);
+  }
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response));
@@ -44,6 +85,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+export function getAuthConfig() {
+  return request<AuthConfigResponse>('/api/auth/config');
+}
+
+export function refreshAccessToken() {
+  return refreshAccessTokenInternal();
+}
+
+export function getCurrentUser() {
+  return request<AuthMeResponse>('/api/auth/me');
+}
+
+export function logout() {
+  return request<void>('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'include'
+  });
 }
 
 export function createDocument(payload: CreateDocumentRequest) {

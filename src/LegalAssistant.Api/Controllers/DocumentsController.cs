@@ -4,11 +4,13 @@ using LegalAssistant.Api.Mappers;
 using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Documents.Services;
 using LegalAssistant.Application.Documents.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LegalAssistant.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public sealed class DocumentsController : ControllerBase
 {

@@ -13,3 +13,14 @@
 - Health checks MUST be defined for infrastructure dependencies where practical.
 - Service startup order MUST NOT be relied upon as readiness;
   services MUST handle dependency readiness/failures explicitly.
+
+## Local Authentication Setup
+
+- Google OAuth credentials for local development MUST be stored in `docker/.env`.
+- The backend auth configuration is injected through `docker/docker-compose.dev.yml`.
+- The current local backend base URL is `http://localhost:5000`.
+- The current local frontend URL is `http://localhost:3000`.
+- The Google OAuth redirect URI registered in Google Cloud for local development must be `http://localhost:5000/api/auth/google/callback`.
+- The frontend sign-in entry point is discovered from `GET /api/auth/config`; it must not hardcode the Google login URL.
+- Access tokens should stay in memory in the frontend runtime.
+- Refresh tokens should be issued by the backend and stored in an `HttpOnly` cookie.

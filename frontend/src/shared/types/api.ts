@@ -126,3 +126,24 @@ export interface AskJobResponse {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface AuthConfigResponse {
+  providers: {
+    google: {
+      enabled: boolean;
+      loginUrl: string | null;
+    };
+  };
+}
+
+export interface AuthMeResponse {
+  id: string;
+  email: string;
+  fullName: string;
+  roles: string[];
+}
+
+export interface AuthRefreshResponse {
+  accessToken: string;
+  expiresAtUtc: string;
+}
