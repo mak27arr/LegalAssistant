@@ -1,4 +1,4 @@
-using LegalAssistant.Api.Services.Auth.Constants;
+using LegalAssistant.Application.Admin;
 using LegalAssistant.Domain.Models;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;

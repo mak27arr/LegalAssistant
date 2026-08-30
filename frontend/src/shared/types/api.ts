@@ -147,3 +147,31 @@ export interface AuthRefreshResponse {
   accessToken: string;
   expiresAtUtc: string;
 }
+
+export interface AdminRoleResponse {
+  id: string;
+  name: string;
+  description: string | null;
+}
+
+export interface AdminUserResponse {
+  id: string;
+  email: string;
+  fullName: string;
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  roles: string[];
+}
+
+export interface AdminUserDetailsResponse {
+  id: string;
+  email: string;
+  fullName: string;
+  googleSubjectId: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string | null;
+  roles: string[];
+}

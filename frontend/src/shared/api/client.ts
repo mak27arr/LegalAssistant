@@ -1,5 +1,8 @@
 import type {
   AskAsyncRequest,
+  AdminUserDetailsResponse,
+  AdminRoleResponse,
+  AdminUserResponse,
   AuthConfigResponse,
   AuthMeResponse,
   AuthRefreshResponse,
@@ -97,6 +100,37 @@ export function refreshAccessToken() {
 
 export function getCurrentUser() {
   return request<AuthMeResponse>('/api/auth/me');
+}
+
+export function getAdminUsers() {
+  return request<AdminUserResponse[]>('/api/admin/users');
+}
+
+export function getAdminRoles() {
+  return request<AdminRoleResponse[]>('/api/admin/roles');
+}
+
+export function updateAdminUserRoles(userId: string, roles: string[]) {
+  return request<AdminUserResponse>(`/api/admin/users/${userId}/roles`, {
+    method: 'PUT',
+    body: JSON.stringify({ roles })
+  });
+}
+
+export function getAdminUser(userId: string) {
+  return request<AdminUserDetailsResponse>(`/api/admin/users/${userId}`);
+}
+
+export function blockAdminUser(userId: string) {
+  return request<AdminUserDetailsResponse>(`/api/admin/users/${userId}/block`, {
+    method: 'POST'
+  });
+}
+
+export function unblockAdminUser(userId: string) {
+  return request<AdminUserDetailsResponse>(`/api/admin/users/${userId}/unblock`, {
+    method: 'POST'
+  });
 }
 
 export function logout() {

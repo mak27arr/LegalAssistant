@@ -75,9 +75,18 @@ public sealed class AuthController : ControllerBase
             return Redirect(BuildRedirectUrl(_authOptions.Value.Frontend.FailureRedirectUrl, "auth_status", "missing_claims"));
         }
 
-        var user = await _authUserProvisioningService.ProvisionGoogleUserAsync(
-            new GoogleUserInfo(subject, email, fullName),
-            cancellationToken);
+        AuthenticatedUser user;
+        try
+        {
+            user = await _authUserProvisioningService.ProvisionGoogleUserAsync(
+                new GoogleUserInfo(subject, email, fullName),
+                cancellationToken);
+        }
+        catch (UserBlockedException)
+        {
+            await HttpContext.SignOutAsync(ExternalScheme);
+            return Redirect(BuildRedirectUrl(_authOptions.Value.Frontend.FailureRedirectUrl, "auth_status", "blocked"));
+        }
 
         var tokens = await _refreshTokenService.IssueTokensAsync(user, cancellationToken);
         AppendRefreshCookie(tokens.RefreshToken, tokens.RefreshTokenExpiresAtUtc);

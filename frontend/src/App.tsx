@@ -1,8 +1,11 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
+import { AdminRoute } from './features/auth/AdminRoute';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { useAuth } from './features/auth/AuthContext';
+import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AskPage } from './pages/AskPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
+import { AdminUserDetailsPage } from './pages/AdminUserDetailsPage';
 import { DocumentDetailsPage } from './pages/DocumentDetailsPage';
 import { DocumentChunksPage } from './pages/DocumentChunksPage';
 import { DocumentsDatabasePage } from './pages/DocumentsDatabasePage';
@@ -35,6 +38,11 @@ export default function App() {
               <NavLink className={navLinkClassName} to="/ask">
                 Ask
               </NavLink>
+              {user?.roles.includes('Admin') ? (
+                <NavLink className={navLinkClassName} to="/admin/users">
+                  Admin
+                </NavLink>
+              ) : null}
               <button className="button-secondary" type="button" onClick={() => void logout()}>
                 Sign out
               </button>
@@ -57,6 +65,10 @@ export default function App() {
             <Route path="/documents/:documentId" element={<DocumentDetailsPage />} />
             <Route path="/documents/:documentId/chunks" element={<DocumentChunksPage />} />
             <Route path="/ask" element={<AskPage />} />
+          </Route>
+          <Route element={<AdminRoute />}>
+            <Route path="/admin/users" element={<AdminUsersPage />} />
+            <Route path="/admin/users/:userId" element={<AdminUserDetailsPage />} />
           </Route>
         </Routes>
       </main>

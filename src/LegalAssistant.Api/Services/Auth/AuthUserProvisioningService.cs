@@ -1,5 +1,5 @@
 using LegalAssistant.Api.Configuration;
-using LegalAssistant.Api.Services.Auth.Constants;
+using LegalAssistant.Application.Admin;
 using LegalAssistant.Domain.Models;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
@@ -61,12 +61,16 @@ public sealed class AuthUserProvisioningService : IAuthUserProvisioningService
         }
         else
         {
+            if (!user.IsActive)
+            {
+                throw new UserBlockedException();
+            }
+
             user.Email = normalizedEmail;
             user.FullName = googleUser.FullName;
             user.GoogleSubjectId = googleUser.Subject;
             user.LastLoginAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
-            user.IsActive = true;
 
             if (!user.UserRoles.Any(x => x.RoleId == defaultRole.Id))
             {

@@ -25,7 +25,9 @@ using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Rag.Services;
 using LegalAssistant.Application.Rag;
 using LegalAssistant.Application.Common;
+using LegalAssistant.Application.Admin.Services;
 using LegalAssistant.Core.Correlation;
+using LegalAssistant.Infrastructure.Admin;
 
 namespace LegalAssistant.Infrastructure.DependencyInjection;
 
@@ -101,6 +103,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IJobRepository, EfJobRepository>();
         services.AddScoped<IJobQueue, EfJobQueue>();
         services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
+        services.AddScoped<IAdminUserQueryService, AdminUserQueryService>();
+        services.AddScoped<IAdminUserRoleService, AdminUserRoleService>();
+        services.AddScoped<IAdminUserManagementService, AdminUserManagementService>();
 
         services.AddScoped<IChunkingRunRepository, EfChunkingRunRepository>();
         services.AddScoped<IChunkingRunService, ChunkingRunService>();

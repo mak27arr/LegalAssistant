@@ -1,4 +1,4 @@
-namespace LegalAssistant.Api.Services.Auth.Constants;
+namespace LegalAssistant.Application.Admin;
 
 public static class RoleNames
 {

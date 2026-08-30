@@ -83,6 +83,10 @@ public static class ServiceCollectionExtensions
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authOptions.Jwt.SigningKey)),
                     ClockSkew = TimeSpan.FromSeconds(30)
                 };
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = ActiveUserJwtBearerEvents.OnTokenValidatedAsync
+                };
             });
     }
 
