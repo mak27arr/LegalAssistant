@@ -1,10 +1,11 @@
 using System.Globalization;
+using System.Security.Claims;
 using System.Text.Json;
 using LegalAssistant.Api.Mappers;
-using LegalAssistant.Application.Ask;
+using LegalAssistant.Api.Services.Auth;
 using LegalAssistant.Application.Ask.Models;
+using LegalAssistant.Application.Ask.Services;
 using LegalAssistant.Domain.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -12,17 +13,14 @@ namespace LegalAssistant.Api.Services;
 
 public sealed class AskJobEventStreamService : IAskJobEventStreamService
 {
-    private readonly IAskJobEventQueryService _events;
-    private readonly IAskJobEventFanout _fanout;
+    private readonly IAskJobEventStreamUseCase _streamUseCase;
     private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     public AskJobEventStreamService(
-        IAskJobEventQueryService events,
-        IAskJobEventFanout fanout,
+        IAskJobEventStreamUseCase streamUseCase,
         IOptions<JsonOptions> jsonOptions)
     {
-        _events = events;
-        _fanout = fanout;
+        _streamUseCase = streamUseCase;
         _jsonSerializerOptions = jsonOptions.Value.JsonSerializerOptions;
     }
 
@@ -30,53 +28,54 @@ public sealed class AskJobEventStreamService : IAskJobEventStreamService
     {
         var response = httpContext.Response;
         var lastEventId = ParseLastEventId(httpContext.Request.Headers["Last-Event-ID"]);
+        var ownerUserId = httpContext.User.ToAuthenticatedUser().Id;
+        var sessionId = httpContext.User.FindFirstValue(ApplicationAuthSchemes.SessionIdClaimType);
 
-        var latest = await _events.GetLatestAsync(jobId, cancellationToken);
-        if (latest == null)
+        var isHeadersConfigured = false;
+
+        await foreach (var item in _streamUseCase.StreamEventsAsync(jobId, ownerUserId, sessionId, lastEventId, cancellationToken))
         {
-            response.StatusCode = StatusCodes.Status404NotFound;
-            response.ContentType = "application/problem+json";
-            await response.WriteAsync("{\"message\":\"job not found\"}", cancellationToken);
-            return;
-        }
-
-        response.StatusCode = StatusCodes.Status200OK;
-        response.Headers["Cache-Control"] = "no-cache";
-        response.Headers["Connection"] = "keep-alive";
-        response.Headers["X-Accel-Buffering"] = "no";
-        response.ContentType = "text/event-stream";
-
-        var subscription = _fanout.Subscribe(jobId);
-        await using (subscription)
-        {
-            var replay = await _events.GetSinceAsync(jobId, lastEventId, cancellationToken);
-            var lastSentEventId = lastEventId;
-
-            foreach (var eventRecord in replay)
+            switch (item.Kind)
             {
-                await WriteEventAsync(response, eventRecord, cancellationToken);
-                lastSentEventId = eventRecord.Id;
-            }
+                case AskJobStreamItemKind.JobNotFound:
+                    response.StatusCode = StatusCodes.Status404NotFound;
+                    response.ContentType = "application/problem+json";
+                    await response.WriteAsync("{\"message\":\"job not found\"}", cancellationToken);
+                    return;
 
-            if (replay.Count > 0 && replay[^1].Status.IsTerminal())
-                return;
+                case AskJobStreamItemKind.SessionExpired:
+                    return;
 
-            if (replay.Count == 0 && latest.Status.IsTerminal() && latest.Id <= lastEventId)
-                return;
+                case AskJobStreamItemKind.Heartbeat:
+                    EnsureSseHeadersConfigured(response, ref isHeadersConfigured);
+                    await response.WriteAsync(": keep-alive\n\n", cancellationToken);
+                    await response.Body.FlushAsync(cancellationToken);
+                    break;
 
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                var eventRecord = await subscription.Reader.ReadAsync(cancellationToken);
-                if (eventRecord.Id <= lastSentEventId)
-                    continue;
-
-                await WriteEventAsync(response, eventRecord, cancellationToken);
-                lastSentEventId = eventRecord.Id;
-
-                if (eventRecord.Status.IsTerminal())
+                case AskJobStreamItemKind.Event:
+                    if (item.EventRecord != null)
+                    {
+                        EnsureSseHeadersConfigured(response, ref isHeadersConfigured);
+                        await WriteEventAsync(response, item.EventRecord, cancellationToken);
+                    }
                     break;
             }
         }
+    }
+
+    private static void EnsureSseHeadersConfigured(HttpResponse response, ref bool isHeadersConfigured)
+    {
+        if (isHeadersConfigured)
+            return;
+
+        response.StatusCode = StatusCodes.Status200OK;
+        response.Headers["Cache-Control"] = "no-cache, no-store";
+        response.Headers["Connection"] = "keep-alive";
+        response.Headers["X-Accel-Buffering"] = "no";
+        response.Headers["Pragma"] = "no-cache";
+        response.Headers["X-Content-Type-Options"] = "nosniff";
+        response.ContentType = "text/event-stream";
+        isHeadersConfigured = true;
     }
 
     private async Task WriteEventAsync(HttpResponse response, AskJobEventRecord eventRecord, CancellationToken cancellationToken)

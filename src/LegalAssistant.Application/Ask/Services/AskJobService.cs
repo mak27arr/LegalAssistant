@@ -37,16 +37,15 @@ public sealed class AskJobService : IAskJobService
             throw new ArgumentException("Question is required", nameof(command));
         if (command.TopK <= 0)
             throw new ArgumentOutOfRangeException(nameof(command), "TopK must be positive");
-        if (string.IsNullOrWhiteSpace(command.ActorScopeKey))
-            throw new ArgumentException("ActorScopeKey is required", nameof(command));
+        if (command.OwnerUserId == Guid.Empty)
+            throw new ArgumentException("OwnerUserId is required", nameof(command));
         if (string.IsNullOrWhiteSpace(command.IdempotencyKey))
             throw new ArgumentException("IdempotencyKey is required", nameof(command));
 
-        var actorScopeKey = command.ActorScopeKey.Trim();
         var idempotencyKey = command.IdempotencyKey.Trim();
         var requestHash = ComputeRequestHash(command.Question, command.TopK, command.ConversationId);
 
-        var existing = await _jobs.GetByIdempotencyKeyAsync(actorScopeKey, idempotencyKey, cancellationToken);
+        var existing = await _jobs.GetByIdempotencyKeyAsync(command.OwnerUserId, idempotencyKey, cancellationToken);
         if (existing != null)
         {
             if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
@@ -56,8 +55,6 @@ public sealed class AskJobService : IAskJobService
                 existing.Id,
                 existing.Status,
                 false,
-                existing.ActorScopeKey,
-                existing.IdempotencyKey,
                 existing.CreatedAt,
                 existing.UpdatedAt);
         }
@@ -66,7 +63,8 @@ public sealed class AskJobService : IAskJobService
         var job = new AskJobRecord
         {
             Id = Guid.NewGuid(),
-            ActorScopeKey = actorScopeKey,
+            OwnerUserId = command.OwnerUserId,
+            ActorScopeKey = command.OwnerUserId.ToString("N"),
             IdempotencyKey = idempotencyKey,
             Question = command.Question.Trim(),
             TopK = command.TopK,
@@ -87,8 +85,6 @@ public sealed class AskJobService : IAskJobService
             job.Id,
             job.Status,
             true,
-            job.ActorScopeKey,
-            job.IdempotencyKey,
             job.CreatedAt,
             job.UpdatedAt);
     }

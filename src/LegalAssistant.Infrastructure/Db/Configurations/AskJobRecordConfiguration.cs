@@ -12,6 +12,7 @@ public sealed class AskJobRecordConfiguration : IEntityTypeConfiguration<AskJobR
         b.HasKey(x => x.Id);
 
         b.Property(x => x.Id).HasColumnName("id");
+        b.Property(x => x.OwnerUserId).HasColumnName("owner_user_id");
         b.Property(x => x.ActorScopeKey).HasMaxLength(256).HasColumnName("actor_scope_key").IsRequired();
         b.Property(x => x.IdempotencyKey).HasMaxLength(256).HasColumnName("idempotency_key").IsRequired();
         b.Property(x => x.Question).HasColumnName("question").IsRequired();
@@ -24,7 +25,11 @@ public sealed class AskJobRecordConfiguration : IEntityTypeConfiguration<AskJobR
         b.Property(x => x.CreatedAt).HasDefaultValueSql("now()").HasColumnName("created_at");
         b.Property(x => x.UpdatedAt).HasDefaultValueSql("now()").HasColumnName("updated_at");
 
-        b.HasIndex(x => new { x.ActorScopeKey, x.IdempotencyKey }).IsUnique();
+        b.HasIndex(x => new { x.OwnerUserId, x.IdempotencyKey }).IsUnique();
         b.HasIndex(x => new { x.Status, x.CreatedAt });
+        b.HasOne(x => x.OwnerUser)
+            .WithMany()
+            .HasForeignKey(x => x.OwnerUserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

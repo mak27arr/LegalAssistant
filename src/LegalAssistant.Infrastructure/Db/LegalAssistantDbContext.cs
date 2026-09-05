@@ -21,6 +21,8 @@ namespace LegalAssistant.Infrastructure.Db
         public DbSet<Role> Roles { get; set; }
         public DbSet<UserRole> UserRoles { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<AuthSessionRecord> AuthSessions { get; set; }
+        public DbSet<DataProtectionKeyRecord> DataProtectionKeys { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using LegalAssistant.Api.Controllers;
 using LegalAssistant.Api.Dtos.Admin;
+using LegalAssistant.Api.Services.Auth;
+using LegalAssistant.Application.Auth;
 using LegalAssistant.Application.Admin;
 using LegalAssistant.Application.Admin.Models;
 using LegalAssistant.Application.Admin.Services;
@@ -38,7 +40,7 @@ public sealed class AdminControllerTests
 
         var roleService = new Mock<IAdminUserRoleService>();
         var managementService = new Mock<IAdminUserManagementService>();
-        var controller = new AdminController(queryService.Object, roleService.Object, managementService.Object);
+        var controller = CreateController(queryService, roleService, managementService);
 
         var result = await controller.GetUsers(null, null, null, 1, 20, CancellationToken.None);
 
@@ -62,7 +64,7 @@ public sealed class AdminControllerTests
 
         var roleService = new Mock<IAdminUserRoleService>();
         var managementService = new Mock<IAdminUserManagementService>();
-        var controller = new AdminController(queryService.Object, roleService.Object, managementService.Object);
+        var controller = CreateController(queryService, roleService, managementService);
 
         var result = await controller.GetRoles(CancellationToken.None);
 
@@ -78,7 +80,7 @@ public sealed class AdminControllerTests
         var queryService = new Mock<IAdminUserQueryService>();
         var roleService = new Mock<IAdminUserRoleService>(MockBehavior.Strict);
         var managementService = new Mock<IAdminUserManagementService>();
-        var controller = new AdminController(queryService.Object, roleService.Object, managementService.Object);
+        var controller = CreateController(queryService, roleService, managementService);
         var currentUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         controller.ControllerContext = BuildControllerContext(currentUserId, "admin@example.com", [RoleNames.Admin]);
 
@@ -102,7 +104,7 @@ public sealed class AdminControllerTests
             .Setup(x => x.UpdateRolesAsync(It.IsAny<UpdateAdminUserRolesCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AdminUserListItemResult?)null);
 
-        var controller = new AdminController(queryService.Object, roleService.Object, managementService.Object);
+        var controller = CreateController(queryService, roleService, managementService);
         controller.ControllerContext = BuildControllerContext(
             Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
             "admin@example.com",
@@ -138,7 +140,7 @@ public sealed class AdminControllerTests
                 new DateTime(2026, 8, 30, 11, 0, 0, DateTimeKind.Utc),
                 [RoleNames.User, RoleNames.Admin]));
 
-        var controller = new AdminController(queryService.Object, roleService.Object, managementService.Object);
+        var controller = CreateController(queryService, roleService, managementService);
         controller.ControllerContext = BuildControllerContext(
             Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
             "admin@example.com",
@@ -175,7 +177,7 @@ public sealed class AdminControllerTests
                 new DateTime(2026, 8, 30, 11, 0, 0, DateTimeKind.Utc),
                 [RoleNames.User, RoleNames.Admin]));
 
-        var controller = new AdminController(queryService.Object, roleService.Object, managementService.Object);
+        var controller = CreateController(queryService, roleService, managementService);
 
         var result = await controller.GetUser(targetUserId, CancellationToken.None);
 
@@ -192,7 +194,7 @@ public sealed class AdminControllerTests
         var roleService = new Mock<IAdminUserRoleService>();
         var managementService = new Mock<IAdminUserManagementService>(MockBehavior.Strict);
         var currentUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-        var controller = new AdminController(queryService.Object, roleService.Object, managementService.Object);
+        var controller = CreateController(queryService, roleService, managementService);
         controller.ControllerContext = BuildControllerContext(currentUserId, "admin@example.com", [RoleNames.Admin]);
 
         var result = await controller.BlockUser(currentUserId, CancellationToken.None);
@@ -223,7 +225,7 @@ public sealed class AdminControllerTests
                 new DateTime(2026, 8, 30, 11, 0, 0, DateTimeKind.Utc),
                 [RoleNames.User]));
 
-        var controller = new AdminController(queryService.Object, roleService.Object, managementService.Object);
+        var controller = CreateController(queryService, roleService, managementService);
         controller.ControllerContext = BuildControllerContext(currentUserId, "admin@example.com", [RoleNames.Admin]);
 
         var result = await controller.BlockUser(targetUserId, CancellationToken.None);
@@ -252,5 +254,18 @@ public sealed class AdminControllerTests
                 User = principal
             }
         };
+    }
+
+    private static AdminController CreateController(
+        Mock<IAdminUserQueryService> queryService,
+        Mock<IAdminUserRoleService> roleService,
+        Mock<IAdminUserManagementService> managementService)
+    {
+        var sessionStore = new Mock<IUserSessionManager>();
+        sessionStore
+            .Setup(x => x.RevokeUserSessionsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        return new AdminController(queryService.Object, roleService.Object, managementService.Object, sessionStore.Object);
     }
 }

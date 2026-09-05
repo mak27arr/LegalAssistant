@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../features/auth/AuthContext';
-import { createAskEventStream, getAskJob, submitAskJob } from '../shared/api/client';
+import { createAskEventStream, getAskJob, getCurrentUser, submitAskJob } from '../shared/api/client';
 import { generateClientId } from '../shared/lib/ids';
 import { ensureStorageKey, readStorage, writeStorage } from '../shared/lib/storage';
 import type { AskJobResponse } from '../shared/types/api';
@@ -9,7 +9,6 @@ import { StatusPill } from '../shared/ui/StatusPill';
 
 const trackedAskJobsKey = 'legal-assistant.ask.jobs';
 const conversationIdKey = 'legal-assistant.ask.conversation-id';
-const actorKeyStorageKey = 'legal-assistant.ask.actor-key';
 const maxRecentAskJobs = 5;
 
 interface AskDraft {
@@ -62,18 +61,6 @@ function normalizeAskJobResponse(value: unknown): AskJobResponse | null {
   return {
     jobId: typeof candidate.jobId === 'string' ? candidate.jobId : typeof candidate.JobId === 'string' ? candidate.JobId : '',
     status: typeof candidate.status === 'string' ? candidate.status : typeof candidate.Status === 'string' ? candidate.Status : '',
-    actorScopeKey:
-      typeof candidate.actorScopeKey === 'string'
-        ? candidate.actorScopeKey
-        : typeof candidate.ActorScopeKey === 'string'
-          ? candidate.ActorScopeKey
-          : '',
-    idempotencyKey:
-      typeof candidate.idempotencyKey === 'string'
-        ? candidate.idempotencyKey
-        : typeof candidate.IdempotencyKey === 'string'
-          ? candidate.IdempotencyKey
-          : '',
     question: typeof candidate.question === 'string' ? candidate.question : typeof candidate.Question === 'string' ? candidate.Question : '',
     topK: typeof candidate.topK === 'number' ? candidate.topK : typeof candidate.TopK === 'number' ? candidate.TopK : 0,
     conversationId:
@@ -190,7 +177,7 @@ function readStoredJobs(): AskJobResponse[] {
 }
 
 export function AskPage() {
-  const { status } = useAuth();
+  const { status, refreshSession } = useAuth();
   const [draft, setDraft] = useState(initialDraft);
   const [jobs, setJobs] = useState<AskJobResponse[]>(readStoredJobs);
   const [error, setError] = useState<string | null>(null);
@@ -229,33 +216,6 @@ export function AskPage() {
         eventSourcesRef.current.delete(job.jobId);
       }
     });
-  }, [jobs]);
-
-  useEffect(() => {
-    const activeJobs = jobs.filter((job) => job.jobId && job.status !== 'Completed' && job.status !== 'Failed');
-    if (activeJobs.length === 0) {
-      return;
-    }
-
-    const poll = () => {
-      void Promise.all(
-        activeJobs.map(async (job) => {
-          try {
-            const freshJob = await getAskJob(job.jobId);
-            updateJob(freshJob);
-          } catch {
-            return;
-          }
-        }),
-      );
-    };
-
-    void poll();
-    const intervalId = window.setInterval(poll, 3000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
   }, [jobs]);
 
   useEffect(() => {
@@ -315,14 +275,9 @@ export function AskPage() {
     source.addEventListener('failed', upsertFromEvent);
     source.onerror = async () => {
       try {
-        const job = await getAskJob(jobId);
-        updateJob(job);
-
-        if (job.status === 'Completed' || job.status === 'Failed') {
-          source.close();
-          eventSourcesRef.current.delete(jobId);
-        }
+        await getCurrentUser();
       } catch {
+        await refreshSession();
         source.close();
         eventSourcesRef.current.delete(jobId);
       }
@@ -334,7 +289,6 @@ export function AskPage() {
     setError(null);
     setIsSubmitting(true);
 
-    const actorKey = ensureStorageKey(actorKeyStorageKey, generateClientId);
     const conversationId = ensureStorageKey(conversationIdKey, generateClientId);
     const idempotencyKey = generateClientId();
 
@@ -345,7 +299,6 @@ export function AskPage() {
           topK: draft.topK,
           conversationId
         },
-        actorKey,
         idempotencyKey,
       );
 

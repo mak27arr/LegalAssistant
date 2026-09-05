@@ -117,6 +117,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ICorrelationContext, CorrelationContext>();
         services.AddSingleton<IClock, SystemClock>();
 
+        services.AddSingleton<LegalAssistant.Infrastructure.Auth.EfAuthSessionStore>();
+        services.AddSingleton<LegalAssistant.Application.Auth.IUserSessionManager>(sp => sp.GetRequiredService<LegalAssistant.Infrastructure.Auth.EfAuthSessionStore>());
+        services.AddSingleton<LegalAssistant.Infrastructure.Auth.IAuthSessionStore>(sp => sp.GetRequiredService<LegalAssistant.Infrastructure.Auth.EfAuthSessionStore>());
+        services.AddSingleton<Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository, LegalAssistant.Infrastructure.Auth.EfDataProtectionKeyRepository>();
+
         return services;
     }
 

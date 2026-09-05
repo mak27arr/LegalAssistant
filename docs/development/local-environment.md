@@ -22,5 +22,7 @@
 - The current local frontend URL is `http://localhost:3000`.
 - The Google OAuth redirect URI registered in Google Cloud for local development must be `http://localhost:5000/signin-google`.
 - The frontend sign-in entry point is discovered from `GET /api/auth/config`; it must not hardcode the Google login URL.
-- Access tokens should stay in memory in the frontend runtime.
-- Refresh tokens should be issued by the backend and stored in an `HttpOnly` cookie.
+- Browser authentication uses the application session cookie `__Host-legalassistant.session`; the frontend must not store access or refresh tokens.
+- Unsafe requests must first fetch `GET /api/auth/csrf` and then send the returned token in `X-CSRF-TOKEN`.
+- Ask SSE uses `GET /api/ask/jobs/{jobId}/events` with native `EventSource` and the session cookie.
+- Production should serve the frontend and `/api/*` through one HTTPS origin. Local development may keep the Vite `/api` proxy.

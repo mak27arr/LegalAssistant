@@ -130,6 +130,10 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("idempotency_key");
 
+                    b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
                     b.Property<string>("Question")
                         .IsRequired()
                         .HasColumnType("text")
@@ -163,12 +167,81 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ActorScopeKey", "IdempotencyKey")
+                    b.HasIndex("OwnerUserId", "IdempotencyKey")
                         .IsUnique();
 
                     b.HasIndex("Status", "CreatedAt");
 
                     b.ToTable("ask_jobs", (string)null);
+                });
+
+            modelBuilder.Entity("LegalAssistant.Domain.Models.AuthSessionRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTime>("LastRenewedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_renewed_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<byte[]>("Ticket")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("ticket");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("auth_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("LegalAssistant.Domain.Models.DataProtectionKeyRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FriendlyName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("friendly_name");
+
+                    b.Property<string>("Xml")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("xml");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FriendlyName")
+                        .IsUnique();
+
+                    b.ToTable("data_protection_keys", (string)null);
                 });
 
             modelBuilder.Entity("LegalAssistant.Domain.Models.ChunkingRun", b =>
@@ -209,6 +282,27 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
                     b.HasIndex("DocumentId", "CreatedAt");
 
                     b.ToTable("chunking_runs", (string)null);
+                });
+
+            modelBuilder.Entity("LegalAssistant.Domain.Models.AskJobRecord", b =>
+                {
+                    b.HasOne("LegalAssistant.Domain.Models.User", "OwnerUser")
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("OwnerUser");
+                });
+
+            modelBuilder.Entity("LegalAssistant.Domain.Models.AuthSessionRecord", b =>
+                {
+                    b.HasOne("LegalAssistant.Domain.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("LegalAssistant.Domain.Models.Document", b =>

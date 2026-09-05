@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Antiforgery;
 using LegalAssistant.Api.Configuration;
 using LegalAssistant.Api.Dtos.Auth;
 using LegalAssistant.Api.Services.Auth;
@@ -13,34 +14,42 @@ namespace LegalAssistant.Api.Controllers;
 [Route("api/auth")]
 public sealed class AuthController : ControllerBase
 {
-    private const string ExternalScheme = "External";
     private readonly IOptions<AuthOptions> _authOptions;
     private readonly IAuthUserProvisioningService _authUserProvisioningService;
-    private readonly IRefreshTokenService _refreshTokenService;
+    private readonly IAntiforgery _antiforgery;
+    private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         IOptions<AuthOptions> authOptions,
         IAuthUserProvisioningService authUserProvisioningService,
-        IRefreshTokenService refreshTokenService)
+        IAntiforgery antiforgery,
+        ILogger<AuthController> logger)
     {
         _authOptions = authOptions;
         _authUserProvisioningService = authUserProvisioningService;
-        _refreshTokenService = refreshTokenService;
+        _antiforgery = antiforgery;
+        _logger = logger;
     }
 
     [AllowAnonymous]
     [HttpGet("config")]
     public ActionResult<AuthConfigResponse> GetConfig()
     {
+        var loginPath = _authOptions.Value.Google.LoginPath;
+        if (string.IsNullOrWhiteSpace(loginPath))
+        {
+            _logger.LogWarning("Google LoginPath is not configured in Authentication:Google options.");
+        }
+
         var loginUrl = string.IsNullOrWhiteSpace(_authOptions.Value.PublicApiBaseUrl)
-            ? null
-            : $"{_authOptions.Value.PublicApiBaseUrl.TrimEnd('/')}/api/auth/google/login";
+            ? loginPath
+            : $"{_authOptions.Value.PublicApiBaseUrl.TrimEnd('/')}/{loginPath?.TrimStart('/')}";
 
         return Ok(new AuthConfigResponse(
             new ProviderConfigResponse(
                 new GoogleProviderConfigResponse(
                     Enabled: !string.IsNullOrWhiteSpace(_authOptions.Value.Google.ClientId),
-                    LoginUrl: loginUrl))));
+                    LoginUrl: loginUrl ?? string.Empty))));
     }
 
     [AllowAnonymous]
@@ -59,7 +68,7 @@ public sealed class AuthController : ControllerBase
     [HttpGet("google/callback")]
     public async Task<IActionResult> CompleteGoogleLogin(CancellationToken cancellationToken)
     {
-        var result = await HttpContext.AuthenticateAsync(ExternalScheme);
+        var result = await HttpContext.AuthenticateAsync(ApplicationAuthSchemes.External);
         if (!result.Succeeded || result.Principal == null)
         {
             return Redirect(BuildRedirectUrl(_authOptions.Value.Frontend.FailureRedirectUrl, "auth_status", "failed"));
@@ -71,7 +80,7 @@ public sealed class AuthController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(fullName))
         {
-            await HttpContext.SignOutAsync(ExternalScheme);
+            await HttpContext.SignOutAsync(ApplicationAuthSchemes.External);
             return Redirect(BuildRedirectUrl(_authOptions.Value.Frontend.FailureRedirectUrl, "auth_status", "missing_claims"));
         }
 
@@ -84,13 +93,32 @@ public sealed class AuthController : ControllerBase
         }
         catch (UserBlockedException)
         {
-            await HttpContext.SignOutAsync(ExternalScheme);
+            await HttpContext.SignOutAsync(ApplicationAuthSchemes.External);
             return Redirect(BuildRedirectUrl(_authOptions.Value.Frontend.FailureRedirectUrl, "auth_status", "blocked"));
         }
 
-        var tokens = await _refreshTokenService.IssueTokensAsync(user, cancellationToken);
-        AppendRefreshCookie(tokens.RefreshToken, tokens.RefreshTokenExpiresAtUtc);
-        await HttpContext.SignOutAsync(ExternalScheme);
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.Name, user.FullName),
+            new(ApplicationAuthSchemes.SessionIdClaimType, Guid.NewGuid().ToString("N"))
+        };
+        claims.AddRange(user.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
+        var identity = new ClaimsIdentity(claims, ApplicationAuthSchemes.Application);
+        var now = DateTimeOffset.UtcNow;
+        await HttpContext.SignInAsync(
+            ApplicationAuthSchemes.Application,
+            new ClaimsPrincipal(identity),
+            new AuthenticationProperties
+            {
+                IsPersistent = false,
+                IssuedUtc = now,
+                ExpiresUtc = now.AddMinutes(Math.Max(1, _authOptions.Value.Session.IdleTimeoutMinutes)),
+                AllowRefresh = true
+            });
+        await HttpContext.SignOutAsync(ApplicationAuthSchemes.External);
 
         return Redirect(BuildRedirectUrl(_authOptions.Value.Frontend.SuccessRedirectUrl, "auth_status", "success"));
     }
@@ -104,59 +132,19 @@ public sealed class AuthController : ControllerBase
     }
 
     [AllowAnonymous]
-    [HttpPost("refresh")]
-    public async Task<ActionResult<AuthRefreshResponse>> Refresh(CancellationToken cancellationToken)
+    [HttpGet("csrf")]
+    public ActionResult<AuthCsrfResponse> Csrf()
     {
-        var refreshCookieName = _authOptions.Value.RefreshToken.CookieName;
-        if (!Request.Cookies.TryGetValue(refreshCookieName, out var refreshToken) || string.IsNullOrWhiteSpace(refreshToken))
-        {
-            return Unauthorized();
-        }
-
-        var tokens = await _refreshTokenService.RefreshAsync(refreshToken, cancellationToken);
-        if (tokens == null)
-        {
-            DeleteRefreshCookie();
-            return Unauthorized();
-        }
-
-        AppendRefreshCookie(tokens.RefreshToken, tokens.RefreshTokenExpiresAtUtc);
-        return Ok(new AuthRefreshResponse(tokens.AccessToken, tokens.AccessTokenExpiresAtUtc));
+        var tokens = _antiforgery.GetAndStoreTokens(HttpContext);
+        return Ok(new AuthCsrfResponse(tokens.RequestToken ?? string.Empty));
     }
 
-    [AllowAnonymous]
+    [Authorize]
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+    public async Task<IActionResult> Logout()
     {
-        var refreshCookieName = _authOptions.Value.RefreshToken.CookieName;
-        if (Request.Cookies.TryGetValue(refreshCookieName, out var refreshToken) && !string.IsNullOrWhiteSpace(refreshToken))
-        {
-            await _refreshTokenService.RevokeAsync(refreshToken, cancellationToken);
-        }
-
-        DeleteRefreshCookie();
+        await HttpContext.SignOutAsync(ApplicationAuthSchemes.Application);
         return NoContent();
-    }
-
-    private void AppendRefreshCookie(string refreshToken, DateTime expiresAtUtc)
-    {
-        Response.Cookies.Append(_authOptions.Value.RefreshToken.CookieName, refreshToken, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
-            Expires = new DateTimeOffset(expiresAtUtc)
-        });
-    }
-
-    private void DeleteRefreshCookie()
-    {
-        Response.Cookies.Delete(_authOptions.Value.RefreshToken.CookieName, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = Request.IsHttps,
-            SameSite = SameSiteMode.Lax
-        });
     }
 
     private static string BuildRedirectUrl(string baseUrl, string key, string value)

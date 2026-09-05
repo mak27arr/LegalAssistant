@@ -13,6 +13,7 @@ public enum AskJobStatus
 public class AskJobRecord
 {
     public Guid Id { get; set; }
+    public Guid? OwnerUserId { get; set; }
     public required string ActorScopeKey { get; set; }
     public required string IdempotencyKey { get; set; }
     public required string Question { get; set; }
@@ -24,4 +25,6 @@ public class AskJobRecord
     public string? Error { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    public User? OwnerUser { get; set; }
 }

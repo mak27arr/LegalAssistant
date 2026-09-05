@@ -7,23 +7,19 @@ public sealed record AskJobSubmissionCommand(
     string Question,
     int TopK,
     string? ConversationId,
-    string ActorScopeKey,
+    Guid OwnerUserId,
     string IdempotencyKey);
 
 public sealed record AskJobSubmissionResult(
     Guid JobId,
     AskJobStatus Status,
     bool IsNew,
-    string ActorScopeKey,
-    string IdempotencyKey,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
 public sealed record AskJobDetails(
     Guid JobId,
     AskJobStatus Status,
-    string ActorScopeKey,
-    string IdempotencyKey,
     string Question,
     int TopK,
     string? ConversationId,

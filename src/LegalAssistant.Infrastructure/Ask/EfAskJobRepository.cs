@@ -22,8 +22,11 @@ public sealed class EfAskJobRepository : IAskJobRepository
     public Task<AskJobRecord?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => _db.AskJobs.FirstOrDefaultAsync(j => j.Id == id, cancellationToken);
 
-    public Task<AskJobRecord?> GetByIdempotencyKeyAsync(string actorScopeKey, string idempotencyKey, CancellationToken cancellationToken = default)
-        => _db.AskJobs.FirstOrDefaultAsync(j => j.ActorScopeKey == actorScopeKey && j.IdempotencyKey == idempotencyKey, cancellationToken);
+    public Task<AskJobRecord?> GetByIdAsync(Guid id, Guid ownerUserId, CancellationToken cancellationToken = default)
+        => _db.AskJobs.FirstOrDefaultAsync(j => j.Id == id && j.OwnerUserId == ownerUserId, cancellationToken);
+
+    public Task<AskJobRecord?> GetByIdempotencyKeyAsync(Guid ownerUserId, string idempotencyKey, CancellationToken cancellationToken = default)
+        => _db.AskJobs.FirstOrDefaultAsync(j => j.OwnerUserId == ownerUserId && j.IdempotencyKey == idempotencyKey, cancellationToken);
 
     public Task<AskJobRecord?> DequeueQueuedAsync(CancellationToken cancellationToken = default)
         => _db.AskJobs

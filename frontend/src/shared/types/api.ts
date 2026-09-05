@@ -107,8 +107,6 @@ export interface AskJobSubmissionResponse {
   jobId: string;
   status: string;
   isNew: boolean;
-  actorScopeKey: string;
-  idempotencyKey: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -116,8 +114,6 @@ export interface AskJobSubmissionResponse {
 export interface AskJobResponse {
   jobId: string;
   status: string;
-  actorScopeKey: string;
-  idempotencyKey: string;
   question: string;
   topK: number;
   conversationId: string | null;
@@ -143,9 +139,8 @@ export interface AuthMeResponse {
   roles: string[];
 }
 
-export interface AuthRefreshResponse {
-  accessToken: string;
-  expiresAtUtc: string;
+export interface AuthCsrfResponse {
+  token: string;
 }
 
 export interface AdminRoleResponse {

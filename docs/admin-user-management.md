@@ -50,8 +50,8 @@ The navigation link is shown only for authenticated users who have the `Admin` r
 - an admin cannot remove the `Admin` role from their own account through the UI or API
 - an admin cannot block their own account through the UI or API
 - a blocked user cannot complete Google sign-in
-- a blocked user cannot refresh tokens
-- JWT-authenticated requests are rejected when the database marks the user as blocked
+- a blocked user cannot continue using existing application sessions
+- cookie-authenticated requests are rejected when the database marks the user as blocked
 
 ## Notes
 

@@ -6,6 +6,4 @@ public sealed record AuthMeResponse(
     string FullName,
     IReadOnlyList<string> Roles);
 
-public sealed record AuthRefreshResponse(
-    string AccessToken,
-    DateTime ExpiresAtUtc);
+public sealed record AuthCsrfResponse(string Token);

@@ -13,9 +13,9 @@ public sealed class AskJobQueryService : IAskJobQueryService
         _jobs = jobs;
     }
 
-    public async Task<AskJobDetails?> GetByIdAsync(Guid jobId, CancellationToken cancellationToken = default)
+    public async Task<AskJobDetails?> GetByIdAsync(Guid jobId, Guid ownerUserId, CancellationToken cancellationToken = default)
     {
-        var job = await _jobs.GetByIdAsync(jobId, cancellationToken);
+        var job = await _jobs.GetByIdAsync(jobId, ownerUserId, cancellationToken);
         if (job == null)
             return null;
 
@@ -28,8 +28,6 @@ public sealed class AskJobQueryService : IAskJobQueryService
         return new AskJobDetails(
             job.Id,
             job.Status,
-            job.ActorScopeKey,
-            job.IdempotencyKey,
             job.Question,
             job.TopK,
             job.ConversationId,

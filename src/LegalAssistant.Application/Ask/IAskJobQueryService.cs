@@ -4,5 +4,5 @@ namespace LegalAssistant.Application.Ask;
 
 public interface IAskJobQueryService
 {
-    Task<AskJobDetails?> GetByIdAsync(Guid jobId, CancellationToken cancellationToken = default);
+    Task<AskJobDetails?> GetByIdAsync(Guid jobId, Guid ownerUserId, CancellationToken cancellationToken = default);
 }

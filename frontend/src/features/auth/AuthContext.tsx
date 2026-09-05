@@ -2,10 +2,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import {
   getAuthConfig,
   getCurrentUser,
-  logout as logoutRequest,
-  refreshAccessToken
+  logout as logoutRequest
 } from '../../shared/api/client';
-import { getAccessToken, setAccessToken } from './session';
 import type { AuthConfigResponse, AuthMeResponse } from '../../shared/types/api';
 
 type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
@@ -47,14 +45,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function refreshSessionInternal() {
     try {
-      const tokenResponse = await refreshAccessToken();
-      setAccessToken(tokenResponse.accessToken);
       const currentUser = await getCurrentUser();
       setUser(currentUser);
       setStatus('authenticated');
       return true;
     } catch {
-      setAccessToken(null);
       setUser(null);
       setStatus('anonymous');
       return false;
@@ -74,7 +69,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await logoutRequest();
     } finally {
-      setAccessToken(null);
       setUser(null);
       setStatus('anonymous');
     }
@@ -103,5 +97,5 @@ export function useAuth() {
 }
 
 export function hasAccessToken() {
-  return Boolean(getAccessToken());
+  return false;
 }

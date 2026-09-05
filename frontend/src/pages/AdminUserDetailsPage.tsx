@@ -212,7 +212,7 @@ export function AdminUserDetailsPage() {
             <article className="detail-card">
               <h3>Access control</h3>
               <p className="muted">
-                Blocking revokes active refresh tokens and prevents new Google sign-in until the account is unblocked.
+                Blocking revokes active sessions and prevents new Google sign-in until the account is unblocked.
               </p>
               <div className="button-row compact-card">
                 {managedUser.isActive ? (

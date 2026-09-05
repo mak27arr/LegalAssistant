@@ -20,8 +20,6 @@ public sealed record AskPromptResponse(
 public sealed record AskJobResponse(
     Guid JobId,
     string Status,
-    string ActorScopeKey,
-    string IdempotencyKey,
     string Question,
     int TopK,
     string? ConversationId,
@@ -34,7 +32,5 @@ public sealed record AskJobSubmissionResponse(
     Guid JobId,
     string Status,
     bool IsNew,
-    string ActorScopeKey,
-    string IdempotencyKey,
     DateTime CreatedAt,
     DateTime UpdatedAt);

@@ -11,10 +11,11 @@ public sealed class InMemoryAskJobEventFanout : IAskJobEventFanout
 
     public IAskJobEventSubscription Subscribe(Guid jobId)
     {
-        var channel = Channel.CreateUnbounded<AskJobEventRecord>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<AskJobEventRecord>(new BoundedChannelOptions(128)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
             AllowSynchronousContinuations = false
         });
 

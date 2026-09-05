@@ -1,5 +1,6 @@
 using LegalAssistant.Api.Dtos.Admin;
 using LegalAssistant.Api.Services.Auth;
+using LegalAssistant.Application.Auth;
 using LegalAssistant.Application.Admin;
 using LegalAssistant.Application.Admin.Models;
 using LegalAssistant.Application.Admin.Services;
@@ -16,15 +17,18 @@ public sealed class AdminController : ControllerBase
     private readonly IAdminUserQueryService _queries;
     private readonly IAdminUserRoleService _roles;
     private readonly IAdminUserManagementService _management;
+    private readonly IUserSessionManager _sessions;
 
     public AdminController(
         IAdminUserQueryService queries,
         IAdminUserRoleService roles,
-        IAdminUserManagementService management)
+        IAdminUserManagementService management,
+        IUserSessionManager sessions)
     {
         _queries = queries;
         _roles = roles;
         _management = management;
+        _sessions = sessions;
     }
 
     [HttpGet("users")]
@@ -90,6 +94,7 @@ public sealed class AdminController : ControllerBase
             return NotFound();
         }
 
+        await _sessions.RevokeUserSessionsAsync(userId, cancellationToken);
         return Ok(MapUser(updated));
     }
 
@@ -108,6 +113,7 @@ public sealed class AdminController : ControllerBase
             return NotFound();
         }
 
+        await _sessions.RevokeUserSessionsAsync(userId, cancellationToken);
         return Ok(MapUserDetails(updated));
     }
 

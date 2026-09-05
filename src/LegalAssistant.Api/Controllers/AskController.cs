@@ -2,6 +2,7 @@ using LegalAssistant.Api.Dtos.Ask;
 using LegalAssistant.Api.Filters;
 using LegalAssistant.Api.Mappers;
 using LegalAssistant.Api.Services;
+using LegalAssistant.Api.Services.Auth;
 using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Ask.Models;
 using LegalAssistant.Application.Rag;
@@ -44,15 +45,15 @@ public sealed class AskController : ControllerBase
     [RequireIdempotencyKey]
     public async Task<ActionResult<AskJobSubmissionResponse>> AskAsync(
         [FromBody] AskAsyncRequest req,
-        [FromHeader(Name = "X-Actor-Key")] string? actorKey,
         CancellationToken cancellationToken)
     {
+        var user = User.ToAuthenticatedUser();
         var submission = await _askJobs.SubmitAsync(
             new AskJobSubmissionCommand(
                 req.Question,
                 req.TopK ?? 5,
                 req.ConversationId,
-                string.IsNullOrWhiteSpace(actorKey) ? "anonymous" : actorKey.Trim(),
+                user.Id,
                 HttpContext.GetRequiredIdempotencyKey()),
             cancellationToken);
 
@@ -60,8 +61,6 @@ public sealed class AskController : ControllerBase
             submission.JobId,
             submission.Status.ToString(),
             submission.IsNew,
-            submission.ActorScopeKey,
-            submission.IdempotencyKey,
             submission.CreatedAt,
             submission.UpdatedAt));
     }
@@ -69,7 +68,8 @@ public sealed class AskController : ControllerBase
     [HttpGet("jobs/{jobId:guid}")]
     public async Task<ActionResult<AskJobResponse>> GetJob(Guid jobId, CancellationToken cancellationToken)
     {
-        var job = await _askJobQueries.GetByIdAsync(jobId, cancellationToken);
+        var user = User.ToAuthenticatedUser();
+        var job = await _askJobQueries.GetByIdAsync(jobId, user.Id, cancellationToken);
         if (job == null)
             return NotFound();
 
@@ -77,7 +77,6 @@ public sealed class AskController : ControllerBase
     }
 
     [HttpGet("jobs/{jobId:guid}/events")]
-    [AllowAnonymous]
     [Produces("text/event-stream")]
     public Task Events(Guid jobId, CancellationToken cancellationToken)
         => _askJobEvents.StreamAsync(jobId, HttpContext, cancellationToken);

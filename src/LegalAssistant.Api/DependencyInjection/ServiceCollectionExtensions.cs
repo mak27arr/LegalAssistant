@@ -3,18 +3,23 @@ using LegalAssistant.Api.Services;
 using LegalAssistant.Api.Common;
 using LegalAssistant.Api.Configuration;
 using LegalAssistant.Api.Services.Auth;
+using LegalAssistant.Application.Auth;
 using LegalAssistant.Infrastructure.Ask;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Security.Claims;
 
 namespace LegalAssistant.Api.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
-    private const string ExternalScheme = "External";
     private const string CorsPolicyName = "Frontend";
 
     public static IServiceCollection AddApiInfrastructure(this IServiceCollection services, IConfiguration configuration)
@@ -29,8 +34,11 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<RabbitMqAskJobEventRelayHostedService>();
         services.AddHostedService<RoleBootstrapper>();
         services.AddScoped<IAuthUserProvisioningService, AuthUserProvisioningService>();
+        services.AddSingleton(TimeProvider.System);
+        services.Configure<LegalAssistant.Infrastructure.Auth.AuthSessionOptions>(configuration.GetSection($"{AuthOptions.SectionName}:Session"));
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+        services.AddDataProtectionAndAntiforgery();
 
         var authOptions = configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
         ConfigureAuthentication(services, authOptions);
@@ -51,21 +59,48 @@ public static class ServiceCollectionExtensions
     {
         services.AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultAuthenticateScheme = ApplicationAuthSchemes.Application;
+                options.DefaultChallengeScheme = ApplicationAuthSchemes.Application;
+                options.DefaultSignInScheme = ApplicationAuthSchemes.Application;
+                options.DefaultScheme = ApplicationAuthSchemes.Application;
             })
-            .AddCookie(ExternalScheme, options =>
+            .AddCookie(ApplicationAuthSchemes.Application, options =>
+            {
+                options.Cookie.Name = authOptions.Session.CookieName;
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.SameSite = SameSiteMode.Lax;
+                options.Cookie.Path = "/";
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(Math.Max(1, authOptions.Session.IdleTimeoutMinutes));
+                options.SlidingExpiration = true;
+                options.LoginPath = authOptions.Google.LoginPath;
+                options.AccessDeniedPath = "/api/auth/forbidden";
+                options.Events = new CookieAuthenticationEvents
+                {
+                    OnRedirectToLogin = context =>
+                    {
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        return Task.CompletedTask;
+                    },
+                    OnRedirectToAccessDenied = context =>
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return Task.CompletedTask;
+                    },
+                    OnValidatePrincipal = ValidateApplicationSessionAsync
+                };
+            })
+            .AddCookie(ApplicationAuthSchemes.External, options =>
             {
                 options.Cookie.Name = "legalassistant.external";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
             })
             .AddGoogle("Google", options =>
             {
-                options.SignInScheme = ExternalScheme;
+                options.SignInScheme = ApplicationAuthSchemes.External;
                 options.ClientId = authOptions.Google.ClientId;
                 options.ClientSecret = authOptions.Google.ClientSecret;
                 options.CallbackPath = authOptions.Google.CallbackPath;
@@ -88,6 +123,43 @@ public static class ServiceCollectionExtensions
                     OnTokenValidated = ActiveUserJwtBearerEvents.OnTokenValidatedAsync
                 };
             });
+
+        services.AddOptions<CookieAuthenticationOptions>(ApplicationAuthSchemes.Application)
+            .Configure<LegalAssistant.Infrastructure.Auth.IAuthSessionStore>((options, sessionStore) =>
+            {
+                options.SessionStore = sessionStore;
+            });
+    }
+
+    private static async Task ValidateApplicationSessionAsync(CookieValidatePrincipalContext context)
+    {
+        var authOptions = context.HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<AuthOptions>>().Value;
+        var db = context.HttpContext.RequestServices.GetRequiredService<LegalAssistant.Infrastructure.Db.LegalAssistantDbContext>();
+        var userIdClaim = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!Guid.TryParse(userIdClaim, out var userId))
+        {
+            context.RejectPrincipal();
+            return;
+        }
+
+        if (context.Properties.IssuedUtc.HasValue)
+        {
+            var absoluteExpiresAt = context.Properties.IssuedUtc.Value.AddHours(Math.Max(1, authOptions.Session.AbsoluteLifetimeHours));
+            if (absoluteExpiresAt <= DateTimeOffset.UtcNow)
+            {
+                context.RejectPrincipal();
+                return;
+            }
+        }
+
+        var isActive = await db.Users
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == userId && x.IsActive);
+        if (!isActive)
+        {
+            context.RejectPrincipal();
+        }
     }
 
     private static void ConfigureAuthorization(IServiceCollection services)
@@ -111,6 +183,28 @@ public static class ServiceCollectionExtensions
                         .AllowCredentials();
                 }
             });
+        });
+    }
+
+    private static void AddDataProtectionAndAntiforgery(this IServiceCollection services)
+    {
+        services.AddDataProtection()
+            .SetApplicationName("LegalAssistant");
+
+        services.AddOptions<KeyManagementOptions>()
+            .Configure<Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository>((options, repository) =>
+            {
+                options.XmlRepository = repository;
+            });
+
+        services.AddAntiforgery(options =>
+        {
+            options.Cookie.Name = "__Host-legalassistant.csrf";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.Path = "/";
+            options.HeaderName = "X-CSRF-TOKEN";
         });
     }
 }

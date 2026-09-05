@@ -5,8 +5,8 @@ import type {
   AdminRoleResponse,
   AdminUserResponse,
   AuthConfigResponse,
+  AuthCsrfResponse,
   AuthMeResponse,
-  AuthRefreshResponse,
   AskJobResponse,
   AskJobSubmissionResponse,
   ChunkDetailsResponse,
@@ -18,10 +18,10 @@ import type {
   DocumentStatsResponse,
   JobResponse
 } from '../types/api';
-import { getAccessToken } from '../../features/auth/session';
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
-let refreshPromise: Promise<AuthRefreshResponse> | null = null;
+let csrfToken: string | null = null;
+let csrfPromise: Promise<string> | null = null;
 
 async function readErrorMessage(response: Response): Promise<string> {
   const contentType = response.headers.get('content-type') ?? '';
@@ -35,48 +35,57 @@ async function readErrorMessage(response: Response): Promise<string> {
   return text || `Request failed with status ${response.status}`;
 }
 
-async function refreshAccessTokenInternal() {
-  if (!refreshPromise) {
-    refreshPromise = fetch(`${apiBaseUrl}/api/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
+function isUnsafeMethod(method: string | undefined) {
+  const normalized = (method ?? 'GET').toUpperCase();
+  return normalized !== 'GET' && normalized !== 'HEAD' && normalized !== 'OPTIONS' && normalized !== 'TRACE';
+}
+
+async function getCsrfToken() {
+  if (csrfToken) {
+    return csrfToken;
+  }
+
+  if (!csrfPromise) {
+    csrfPromise = fetch(`${apiBaseUrl}/api/auth/csrf`, {
+      method: 'GET',
+      credentials: 'same-origin',
       headers: {
-        'Content-Type': 'application/json'
+        Accept: 'application/json'
       }
     }).then(async (response) => {
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
       }
 
-      return (await response.json()) as AuthRefreshResponse;
+      const body = (await response.json()) as AuthCsrfResponse;
+      csrfToken = body.token;
+      return body.token;
     }).finally(() => {
-      refreshPromise = null;
+      csrfPromise = null;
     });
   }
 
-  return refreshPromise;
+  return csrfPromise;
 }
 
-function isAuthEndpoint(path: string) {
-  return path.startsWith('/api/auth/');
-}
+async function request<T>(path: string, init?: RequestInit, allowCsrfRetry = true): Promise<T> {
+  const unsafe = isUnsafeMethod(init?.method);
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (unsafe) {
+    headers.set('X-CSRF-TOKEN', await getCsrfToken());
+  }
 
-async function request<T>(path: string, init?: RequestInit, allowRefresh = true): Promise<T> {
-  const token = getAccessToken();
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     credentials: init?.credentials ?? 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {})
-    }
+    headers
   });
 
-  if (response.status === 401 && allowRefresh && !isAuthEndpoint(path)) {
-    const refreshed = await refreshAccessTokenInternal();
-    const { setAccessToken } = await import('../../features/auth/session');
-    setAccessToken(refreshed.accessToken);
+  if (response.status === 400 && unsafe && allowCsrfRetry) {
+    csrfToken = null;
     return request<T>(path, init, false);
   }
 
@@ -93,10 +102,6 @@ async function request<T>(path: string, init?: RequestInit, allowRefresh = true)
 
 export function getAuthConfig() {
   return request<AuthConfigResponse>('/api/auth/config');
-}
-
-export function refreshAccessToken() {
-  return refreshAccessTokenInternal();
 }
 
 export function getCurrentUser() {
@@ -165,8 +170,7 @@ export function unblockAdminUser(userId: string) {
 
 export function logout() {
   return request<void>('/api/auth/logout', {
-    method: 'POST',
-    credentials: 'include'
+    method: 'POST'
   });
 }
 
@@ -201,12 +205,11 @@ export function getJob(jobId: string) {
   return request<JobResponse>(`/api/jobs/${jobId}`);
 }
 
-export function submitAskJob(payload: AskAsyncRequest, actorKey: string, idempotencyKey: string) {
+export function submitAskJob(payload: AskAsyncRequest, idempotencyKey: string) {
   return request<AskJobSubmissionResponse>('/api/ask/async', {
     method: 'POST',
     body: JSON.stringify(payload),
     headers: {
-      'X-Actor-Key': actorKey,
       'Idempotency-Key': idempotencyKey
     }
   });
@@ -217,5 +220,7 @@ export function getAskJob(jobId: string) {
 }
 
 export function createAskEventStream(jobId: string) {
-  return new EventSource(`${apiBaseUrl}/api/ask/jobs/${jobId}/events`);
+  return new EventSource(`${apiBaseUrl}/api/ask/jobs/${jobId}/events`, {
+    withCredentials: true
+  });
 }

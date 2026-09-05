@@ -285,6 +285,7 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 frontend/dist/
+.pnpm-store/
 
 # Visual Studio 6 build log
 *.plg

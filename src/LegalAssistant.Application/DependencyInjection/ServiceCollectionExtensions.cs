@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAskJobService, AskJobService>();
         services.AddScoped<IAskJobQueryService, AskJobQueryService>();
         services.AddScoped<IAskJobEventQueryService, AskJobEventQueryService>();
+        services.AddScoped<IAskJobEventStreamUseCase, AskJobEventStreamUseCase>();
         services.AddScoped<IAskJobProcessor, AskJobProcessor>();
         services.AddScoped<IJobQueryService, JobQueryService>();
         services.AddScoped<IRagAnswerService, RagAnswerService>();
