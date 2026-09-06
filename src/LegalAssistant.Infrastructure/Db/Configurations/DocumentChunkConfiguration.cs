@@ -54,6 +54,9 @@ public sealed class DocumentChunkConfiguration : IEntityTypeConfiguration<Docume
             .HasOperators("vector_l2_ops")
             .HasFilter("\"embedding\" IS NOT NULL");
         b.HasIndex(x => new { x.JobId, x.EmbeddingStatus });
+        b.HasIndex(x => new { x.ChunkingRunId, x.ChunkIndex })
+            .IsUnique()
+            .HasFilter("\"chunking_run_id\" IS NOT NULL");
 
         b.Property(x => x.CreatedAt).HasDefaultValueSql("now()").HasColumnName("created_at");
 

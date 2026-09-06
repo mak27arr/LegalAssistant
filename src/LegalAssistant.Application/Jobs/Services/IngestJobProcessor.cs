@@ -80,11 +80,17 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
             var text = NormalizeText(doc.Content);
             var chunkIndex = 0;
 
-            var (run, chunking) = await _chunkingRunService.CreateAsync(
+            var existingRun = await _chunkingRuns.GetByJobIdAsync(jobId, cancellationToken);
+            var (newRun, chunking) = await _chunkingRunService.CreateAsync(
                 new ChunkingRunContext(doc.Id, doc.Url, text),
                 cancellationToken);
+            var run = existingRun ?? newRun;
 
-            await _chunkingRuns.AddAsync(run, cancellationToken);
+            if (existingRun is null)
+            {
+                run.JobId = jobId;
+                await _chunkingRuns.AddAsync(run, cancellationToken);
+            }
 
             doc.ActiveChunkingRunId = run.Id;
             _documents.Update(doc);
@@ -109,12 +115,12 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
                 chunkIndex,
                 chunkIndex == 0 ? EmbeddingStatus.Completed : EmbeddingStatus.Pending);
 
-            // Persist chunks before publishing requests. The embedding worker may
-            // complete a request immediately, so the chunk must already exist.
-            await _uow.SaveChangesAsync(cancellationToken);
-
             foreach (var (chunkId, chunkText) in toEnqueue)
                 await _embeddings.EnqueueEmbeddingAsync(chunkId, chunkText, jobId, run.Id, cancellationToken);
+
+            // Chunks and embedding requests are committed together. The embedding
+            // outbox dispatcher only publishes after this transaction succeeds.
+            await _uow.SaveChangesAsync(cancellationToken);
 
             var finalState = await _embeddingStatuses.FinalizeRunAsync(run.Id, jobId, cancellationToken);
             if (!finalState.RunCompleted && job.Status == JobStatus.InProgress)
@@ -217,6 +223,10 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
 
     private async Task<DocumentChunk> AddChunkAsync(Document doc, string text, int chunkIndex, ChunkingRun run, Guid jobId, Domain.Chunking.ChunkRange range, CancellationToken cancellationToken)
     {
+        var existing = await _chunks.GetByChunkingRunAndIndexAsync(run.Id, chunkIndex, cancellationToken);
+        if (existing is not null)
+            return existing;
+
         var chunkText = NormalizeText(text.Substring(range.Start, range.Length));
         var chunk = new DocumentChunk
         {

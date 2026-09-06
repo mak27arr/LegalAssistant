@@ -6,6 +6,7 @@ namespace LegalAssistant.Domain.Models
     {
         public Guid Id { get; set; }
         public Guid DocumentId { get; set; }
+        public Guid? JobId { get; set; }
 
         public required string StrategyName { get; set; }
         public required string StrategyVersion { get; set; }

@@ -72,6 +72,7 @@ public sealed class DocumentCommandService : IDocumentCommandService
         {
             Id = Guid.NewGuid(),
             JobId = job.Id,
+            DeduplicationKey = job.Id.ToString("N"),
             MessageType = DocumentIngestMessageNames.MessageType,
             RoutingKey = DocumentIngestMessageNames.Queue,
             Payload = job.Payload,
@@ -118,6 +119,7 @@ public sealed class DocumentCommandService : IDocumentCommandService
         {
             Id = Guid.NewGuid(),
             JobId = job.Id,
+            DeduplicationKey = job.Id.ToString("N"),
             MessageType = DocumentIngestMessageNames.MessageType,
             RoutingKey = DocumentIngestMessageNames.Queue,
             Payload = job.Payload,

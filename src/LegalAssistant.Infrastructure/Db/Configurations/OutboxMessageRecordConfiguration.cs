@@ -12,13 +12,14 @@ public sealed class OutboxMessageRecordConfiguration : IEntityTypeConfiguration<
         b.HasKey(x => x.Id);
 
         b.Property(x => x.Id).HasColumnName("id");
-        b.Property(x => x.JobId).HasColumnName("job_id").IsRequired();
+        b.Property(x => x.JobId).HasColumnName("job_id");
         b.Property(x => x.AskJobEventId).HasColumnName("ask_job_event_id");
         b.HasOne(x => x.AskJobEvent)
             .WithMany()
             .HasForeignKey(x => x.AskJobEventId)
             .OnDelete(DeleteBehavior.Restrict);
         b.Property(x => x.MessageType).HasColumnName("message_type").HasMaxLength(150).IsRequired();
+        b.Property(x => x.DeduplicationKey).HasColumnName("deduplication_key").HasMaxLength(300);
         b.Property(x => x.RoutingKey).HasColumnName("routing_key").HasMaxLength(200).IsRequired();
         b.Property(x => x.Payload).HasColumnName("payload").IsRequired();
         b.Property(x => x.CorrelationId).HasColumnName("correlation_id").HasMaxLength(100).IsRequired();
@@ -31,7 +32,10 @@ public sealed class OutboxMessageRecordConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         b.Property(x => x.PublishedAt).HasColumnName("published_at");
 
-        b.HasIndex(x => new { x.JobId, x.MessageType }).IsUnique();
+        b.HasIndex(x => new { x.JobId, x.MessageType });
+        b.HasIndex(x => new { x.MessageType, x.DeduplicationKey })
+            .IsUnique()
+            .HasFilter("\"deduplication_key\" IS NOT NULL");
         b.HasIndex(x => x.AskJobEventId);
         b.HasIndex(x => new { x.Status, x.NextAttemptAt, x.CreatedAt });
     }

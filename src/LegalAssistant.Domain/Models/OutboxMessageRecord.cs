@@ -13,10 +13,11 @@ public enum OutboxMessageStatus
 public class OutboxMessageRecord
 {
     public Guid Id { get; set; }
-    public Guid JobId { get; set; }
+    public Guid? JobId { get; set; }
     public long? AskJobEventId { get; set; }
     public AskJobEventRecord? AskJobEvent { get; set; }
     public required string MessageType { get; set; }
+    public string? DeduplicationKey { get; set; }
     public required string RoutingKey { get; set; }
     public required string Payload { get; set; }
     public required string CorrelationId { get; set; }

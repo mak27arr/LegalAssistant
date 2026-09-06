@@ -59,13 +59,13 @@ public sealed class EmbeddingReplayService : IEmbeddingReplayService
             }
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
-        await _publisher.EnqueueEmbeddingAsync(
+        await _publisher.RequeueEmbeddingAsync(
             chunk.Id,
             chunk.Text,
             chunk.JobId,
             chunk.ChunkingRunId,
             cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
         return true;
     }
 }

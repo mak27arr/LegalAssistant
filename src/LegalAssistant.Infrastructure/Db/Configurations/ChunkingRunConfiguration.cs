@@ -16,6 +16,9 @@ public sealed class ChunkingRunConfiguration : IEntityTypeConfiguration<Chunking
             .HasColumnName("document_id")
             .IsRequired();
 
+        builder.Property(x => x.JobId)
+            .HasColumnName("job_id");
+
         builder.Property(x => x.StrategyName)
             .HasColumnName("strategy_name")
             .IsRequired();
@@ -54,5 +57,8 @@ public sealed class ChunkingRunConfiguration : IEntityTypeConfiguration<Chunking
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(x => new { x.DocumentId, x.CreatedAt });
+        builder.HasIndex(x => x.JobId)
+            .IsUnique()
+            .HasFilter("\"job_id\" IS NOT NULL");
     }
 }

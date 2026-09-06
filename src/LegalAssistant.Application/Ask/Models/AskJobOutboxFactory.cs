@@ -13,6 +13,7 @@ public static class AskJobOutboxFactory
             JobId = eventRecord.JobId,
             AskJobEvent = eventRecord,
             MessageType = AskJobMessageNames.GetMessageType(eventRecord.Status),
+            DeduplicationKey = $"{eventRecord.JobId:N}:{AskJobMessageNames.GetMessageType(eventRecord.Status)}",
             RoutingKey = AskJobMessageNames.GetRoutingKey(eventRecord.Status),
             Payload = JsonSerializer.Serialize(eventRecord),
             CorrelationId = eventRecord.JobId.ToString("N"),

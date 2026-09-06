@@ -12,4 +12,11 @@ public interface IEmbeddingEnqueueService
         Guid? jobId = null,
         Guid? chunkingRunId = null,
         CancellationToken cancellationToken = default);
+
+    Task RequeueEmbeddingAsync(
+        Guid chunkId,
+        string text,
+        Guid? jobId = null,
+        Guid? chunkingRunId = null,
+        CancellationToken cancellationToken = default);
 }

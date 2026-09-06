@@ -6,6 +6,7 @@ using LegalAssistant.Infrastructure.DependencyInjection;
 using LegalAssistant.Infrastructure.Ask;
 using LegalAssistant.Infrastructure.Messaging;
 using LegalAssistant.Infrastructure.Jobs;
+using LegalAssistant.Infrastructure.Messaging.Outbox;
 
 namespace LegalAssistant.Workers.DependencyInjection;
 
@@ -18,9 +19,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IIngestJobProcessor, IngestJobProcessor>();
 
         services.AddInfrastructureConsumers();
-        services.AddHostedService<QueuedJobOutboxDispatcherHostedService>();
+        services.AddScoped<IOutboxMessagePublisher, DocumentIngestOutboxPublisher>();
+        services.AddScoped<IOutboxMessagePublisher, EmbeddingRequestOutboxPublisher>();
+        services.AddScoped<IOutboxMessagePublisher, AskJobEventOutboxPublisher>();
+        services.AddScoped<IOutboxMaintenance, DocumentIngestOutboxRepairer>();
+        services.AddHostedService<OutboxDispatcherHostedService>();
         services.AddHostedService<StaleIngestJobRecoveryHostedService>();
-        services.AddHostedService<AskJobOutboxDispatcherHostedService>();
         services.AddHostedService<AskJobWorkerHostedService>();
 
         return services;

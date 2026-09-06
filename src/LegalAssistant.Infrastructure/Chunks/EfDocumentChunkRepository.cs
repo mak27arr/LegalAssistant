@@ -20,6 +20,14 @@ public sealed class EfDocumentChunkRepository : IDocumentChunkRepository
     public Task AddAsync(DocumentChunk chunk, CancellationToken cancellationToken = default)
         => _db.DocumentChunks.AddAsync(chunk, cancellationToken).AsTask();
 
+    public Task<DocumentChunk?> GetByChunkingRunAndIndexAsync(
+        Guid chunkingRunId,
+        int chunkIndex,
+        CancellationToken cancellationToken = default)
+        => _db.DocumentChunks.FirstOrDefaultAsync(
+            c => c.ChunkingRunId == chunkingRunId && c.ChunkIndex == chunkIndex,
+            cancellationToken);
+
     public async Task<IReadOnlyList<DocumentChunk>> GetNearestByEmbeddingAsync(float[] queryEmbedding, int topK, CancellationToken cancellationToken = default)
     {
         if (queryEmbedding == null || queryEmbedding.Length == 0)
