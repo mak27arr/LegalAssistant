@@ -11,6 +11,7 @@ public static class AskJobOutboxFactory
         {
             Id = Guid.NewGuid(),
             JobId = eventRecord.JobId,
+            AskJobEvent = eventRecord,
             MessageType = AskJobMessageNames.GetMessageType(eventRecord.Status),
             RoutingKey = AskJobMessageNames.GetRoutingKey(eventRecord.Status),
             Payload = JsonSerializer.Serialize(eventRecord),

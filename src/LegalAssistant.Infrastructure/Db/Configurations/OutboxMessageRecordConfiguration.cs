@@ -13,6 +13,11 @@ public sealed class OutboxMessageRecordConfiguration : IEntityTypeConfiguration<
 
         b.Property(x => x.Id).HasColumnName("id");
         b.Property(x => x.JobId).HasColumnName("job_id").IsRequired();
+        b.Property(x => x.AskJobEventId).HasColumnName("ask_job_event_id");
+        b.HasOne(x => x.AskJobEvent)
+            .WithMany()
+            .HasForeignKey(x => x.AskJobEventId)
+            .OnDelete(DeleteBehavior.Restrict);
         b.Property(x => x.MessageType).HasColumnName("message_type").HasMaxLength(150).IsRequired();
         b.Property(x => x.RoutingKey).HasColumnName("routing_key").HasMaxLength(200).IsRequired();
         b.Property(x => x.Payload).HasColumnName("payload").IsRequired();
@@ -27,6 +32,7 @@ public sealed class OutboxMessageRecordConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.PublishedAt).HasColumnName("published_at");
 
         b.HasIndex(x => new { x.JobId, x.MessageType }).IsUnique();
+        b.HasIndex(x => x.AskJobEventId);
         b.HasIndex(x => new { x.Status, x.NextAttemptAt, x.CreatedAt });
     }
 }

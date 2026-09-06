@@ -12,7 +12,6 @@ export function LoginPage() {
           <h2>Sign in to Legal Assistant</h2>
           <p>Authentication is handled by the backend and uses Google as the identity provider.</p>
         </div>
-        <span className="code-chip">GET /api/auth/config</span>
       </div>
 
       {status === 'loading' ? <div className="inline-info">Loading authentication settings...</div> : null}

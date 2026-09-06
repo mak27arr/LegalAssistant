@@ -103,16 +103,21 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
         using var heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(20));
 
         var lastSentEventId = initialLastSentEventId;
+        Task<AskJobEventRecord>? readTask = null;
+        var heartbeatTask = heartbeatTimer.WaitForNextTickAsync(streamLifetimeCts.Token).AsTask();
 
         while (!streamLifetimeCts.Token.IsCancellationRequested)
         {
-            var step = await ReadNextLiveStepAsync(subscription, heartbeatTimer, streamLifetimeCts.Token).ConfigureAwait(false);
+            readTask ??= subscription.Reader.ReadAsync(streamLifetimeCts.Token).AsTask();
+            var step = await ReadNextLiveStepAsync(readTask, heartbeatTask).ConfigureAwait(false);
 
             if (step.Kind == LiveStepKind.Stop)
                 yield break;
 
             if (step.Kind == LiveStepKind.Heartbeat)
             {
+                heartbeatTask = heartbeatTimer.WaitForNextTickAsync(streamLifetimeCts.Token).AsTask();
+
                 if (!string.IsNullOrWhiteSpace(sessionId) && !await _sessions.ExistsAsync(sessionId, streamLifetimeCts.Token).ConfigureAwait(false))
                 {
                     yield return new AskJobStreamItem(AskJobStreamItemKind.SessionExpired);
@@ -125,7 +130,9 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
 
             if (step.Kind == LiveStepKind.Event && step.EventRecord != null)
             {
-                if (step.EventRecord.Id <= lastSentEventId)
+                readTask = null;
+
+                if (step.EventRecord.Id > 0 && step.EventRecord.Id <= lastSentEventId)
                     continue;
 
                 lastSentEventId = step.EventRecord.Id;
@@ -138,15 +145,11 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
     }
 
     private static async Task<LiveStepResult> ReadNextLiveStepAsync(
-        IAskJobEventSubscription subscription,
-        PeriodicTimer heartbeatTimer,
-        CancellationToken ct)
+        Task<AskJobEventRecord> readTask,
+        Task<bool> heartbeatTask)
     {
         try
         {
-            var readTask = subscription.Reader.ReadAsync(ct).AsTask();
-            var heartbeatTask = heartbeatTimer.WaitForNextTickAsync(ct).AsTask();
-
             var completedTask = await Task.WhenAny(readTask, heartbeatTask).ConfigureAwait(false);
 
             if (completedTask == heartbeatTask)

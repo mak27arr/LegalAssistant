@@ -329,7 +329,6 @@ export function AskPage() {
             <h2>Ask the assistant</h2>
             <p>Questions go through the async job pipeline and stream progress back over server-sent events.</p>
           </div>
-          <span className="code-chip">POST /api/ask/async</span>
         </div>
 
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -384,7 +383,6 @@ export function AskPage() {
             <h2>Recent ask jobs</h2>
             <p>Realtime status comes from SSE, while completed jobs keep their final answer in local history.</p>
           </div>
-          <span className="code-chip">{'GET /api/ask/jobs/{jobId}/events'}</span>
         </div>
 
         {visibleJobs.length === 0 ? (

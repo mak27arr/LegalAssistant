@@ -65,9 +65,13 @@ public sealed class AskJobOutboxDispatcherHostedService : BackgroundService
         {
             try
             {
-                var eventRecord = JsonSerializer.Deserialize<AskJobEventRecord>(message.Payload);
+                var eventRecord = message.AskJobEventId.HasValue
+                    ? await db.AskJobEvents
+                        .AsNoTracking()
+                        .SingleOrDefaultAsync(x => x.Id == message.AskJobEventId.Value, cancellationToken)
+                    : JsonSerializer.Deserialize<AskJobEventRecord>(message.Payload);
                 if (eventRecord == null)
-                    throw new InvalidOperationException($"Ask outbox payload could not be deserialized. outboxId={message.Id}");
+                    throw new InvalidOperationException($"Ask outbox event could not be loaded. outboxId={message.Id}");
 
                 await publisher.PublishAsync(eventRecord, cancellationToken);
                 await MarkPublishedAsync(db, message.Id, _clock.UtcNow, cancellationToken);

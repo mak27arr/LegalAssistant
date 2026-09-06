@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Security.Claims;
@@ -24,7 +25,10 @@ public static class ServiceCollectionExtensions
 {
     private const string CorsPolicyName = "Frontend";
 
-    public static IServiceCollection AddApiInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddApiInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
         services.Configure<CorsOptions>(configuration.GetSection(CorsOptions.SectionName));
@@ -40,10 +44,10 @@ public static class ServiceCollectionExtensions
         services.Configure<LegalAssistant.Infrastructure.Auth.AuthSessionOptions>(configuration.GetSection($"{AuthOptions.SectionName}:Session"));
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
-        services.AddDataProtectionAndAntiforgery();
+        services.AddDataProtectionAndAntiforgery(environment);
 
         var authOptions = configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
-        ConfigureAuthentication(services, authOptions);
+        ConfigureAuthentication(services, authOptions, environment);
         ConfigureAuthorization(services);
         ConfigureCors(services, configuration);
 
@@ -57,8 +61,13 @@ public static class ServiceCollectionExtensions
 
     public static string GetFrontendCorsPolicyName() => CorsPolicyName;
 
-    private static void ConfigureAuthentication(IServiceCollection services, AuthOptions authOptions)
+    private static void ConfigureAuthentication(
+        IServiceCollection services,
+        AuthOptions authOptions,
+        IHostEnvironment environment)
     {
+        var cookieSecurePolicy = GetCookieSecurePolicy(environment);
+
         services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = ApplicationAuthSchemes.Application;
@@ -68,9 +77,9 @@ public static class ServiceCollectionExtensions
             })
             .AddCookie(ApplicationAuthSchemes.Application, options =>
             {
-                options.Cookie.Name = authOptions.Session.CookieName;
+                options.Cookie.Name = GetCookieName(authOptions.Session.CookieName, environment);
                 options.Cookie.HttpOnly = true;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.SecurePolicy = cookieSecurePolicy;
                 options.Cookie.SameSite = SameSiteMode.Lax;
                 options.Cookie.Path = "/";
                 options.ExpireTimeSpan = TimeSpan.FromMinutes(Math.Max(1, authOptions.Session.IdleTimeoutMinutes));
@@ -97,7 +106,7 @@ public static class ServiceCollectionExtensions
                 options.Cookie.Name = "legalassistant.external";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.SecurePolicy = cookieSecurePolicy;
                 options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
             })
             .AddGoogle("Google", options =>
@@ -188,7 +197,9 @@ public static class ServiceCollectionExtensions
         });
     }
 
-    private static void AddDataProtectionAndAntiforgery(this IServiceCollection services)
+    private static void AddDataProtectionAndAntiforgery(
+        this IServiceCollection services,
+        IHostEnvironment environment)
     {
         services.AddDataProtection()
             .SetApplicationName("LegalAssistant");
@@ -201,12 +212,27 @@ public static class ServiceCollectionExtensions
 
         services.AddAntiforgery(options =>
         {
-            options.Cookie.Name = "__Host-legalassistant.csrf";
+            options.Cookie.Name = GetCookieName("__Host-legalassistant.csrf", environment);
             options.Cookie.HttpOnly = true;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SecurePolicy = GetCookieSecurePolicy(environment);
             options.Cookie.SameSite = SameSiteMode.Lax;
             options.Cookie.Path = "/";
             options.HeaderName = "X-CSRF-TOKEN";
         });
+    }
+
+    private static CookieSecurePolicy GetCookieSecurePolicy(IHostEnvironment environment) =>
+        environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
+
+    private static string GetCookieName(string cookieName, IHostEnvironment environment)
+    {
+        if (environment.IsDevelopment() && cookieName.StartsWith("__Host-", StringComparison.Ordinal))
+        {
+            return cookieName["__Host-".Length..];
+        }
+
+        return cookieName;
     }
 }

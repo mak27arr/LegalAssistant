@@ -95,7 +95,6 @@ export function DocumentChunksPage() {
           <h2>Document chunks</h2>
           <p>Chunk list for the selected document. Click a chunk row to open its content.</p>
         </div>
-        <span className="code-chip">GET /api/documents/{'{id}'}/chunks</span>
       </div>
 
       <div className="button-row">

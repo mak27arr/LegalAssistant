@@ -151,7 +151,6 @@ export function DocumentsPage() {
             <h2>Document intake</h2>
             <p>Submit a document by URL only. The frontend derives a title automatically and tracks the ingest job.</p>
           </div>
-          <span className="code-chip">POST /api/documents</span>
         </div>
 
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -189,7 +188,6 @@ export function DocumentsPage() {
               <h2>System snapshot</h2>
               <p>Aggregate counts from the backend. No list endpoint required.</p>
             </div>
-            <span className="code-chip">GET /api/documents/stats</span>
           </div>
 
           {statsError ? <div className="inline-error">{statsError}</div> : null}

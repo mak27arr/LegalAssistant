@@ -112,7 +112,6 @@ export function AdminUserDetailsPage() {
           <h2>User details</h2>
           <p>Inspect account metadata, adjust roles, and block or unblock access for this user.</p>
         </div>
-        <span className="code-chip">GET /api/admin/users/{'{userId}'}</span>
       </div>
 
       <div className="button-row">

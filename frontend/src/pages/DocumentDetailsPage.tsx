@@ -40,7 +40,6 @@ export function DocumentDetailsPage() {
           <h2>Document details</h2>
           <p>Detail view backed by the new document details endpoint.</p>
         </div>
-        <span className="code-chip">GET /api/documents/{'{id}'}</span>
       </div>
 
       <div className="button-row">

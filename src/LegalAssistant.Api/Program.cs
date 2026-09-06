@@ -27,7 +27,7 @@ builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOpt
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApplicationServices();
 builder.Services.AddCentralizedLogging(builder.Configuration, "api");
-builder.Services.AddApiInfrastructure(builder.Configuration);
+builder.Services.AddApiInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddApiReadinessHealthChecks();
 
 var app = builder.Build();

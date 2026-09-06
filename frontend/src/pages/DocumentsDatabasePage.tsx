@@ -41,7 +41,6 @@ export function DocumentsDatabasePage() {
           <h2>Documents in database</h2>
           <p>Browse all ingested documents from the dedicated list endpoint.</p>
         </div>
-        <span className="code-chip">GET /api/documents</span>
       </div>
 
       <div className="button-row">

@@ -123,7 +123,6 @@ export function AdminUsersPage() {
           <h2>User management</h2>
           <p>Review signed-in users and assign the roles that control access to the operator console.</p>
         </div>
-        <span className="code-chip">GET /api/admin/users</span>
       </div>
 
       <div className="button-row">
