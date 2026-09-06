@@ -6,5 +6,6 @@ public sealed record JobDto(
     string Status,
     string Payload,
     string? Result,
+    string? LastError,
     DateTime CreatedAt,
     DateTime UpdatedAt);

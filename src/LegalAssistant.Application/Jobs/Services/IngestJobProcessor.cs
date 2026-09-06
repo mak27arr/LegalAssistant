@@ -23,6 +23,7 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
     private readonly IChunkingRunService _chunkingRunService;
     private readonly IChunkingRunRepository _chunkingRuns;
     private readonly IDocumentContentFetcher _contentFetcher;
+    private readonly IngestJobProcessingOptions _options;
     private readonly ILogger<IngestJobProcessor> _logger;
 
     public IngestJobProcessor(
@@ -34,6 +35,7 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
         IChunkingRunService chunkingRunService,
         IChunkingRunRepository chunkingRuns,
         IDocumentContentFetcher contentFetcher,
+        IngestJobProcessingOptions options,
         ILogger<IngestJobProcessor> logger)
     {
         _documents = documents;
@@ -44,12 +46,19 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
         _chunkingRunService = chunkingRunService;
         _chunkingRuns = chunkingRuns;
         _contentFetcher = contentFetcher;
+        _options = options;
         _logger = logger;
     }
 
     public async Task ProcessAsync(Guid jobId, CancellationToken cancellationToken = default)
     {
-        if (!await _jobs.TryMarkInProgressAsync(jobId, cancellationToken))
+        var options = _options;
+        var lease = await _jobs.TryMarkInProgressAsync(
+            jobId,
+            TimeSpan.FromSeconds(Math.Max(1, options.LeaseDurationSeconds)),
+            cancellationToken);
+
+        if (lease is null)
             return;
 
         JobRecord? job = null;
@@ -84,51 +93,104 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
                 }
             }
 
-            job.Status = JobStatus.Completed;
-            job.Result = JsonSerializer.Serialize(new { chunks = chunkIndex });
-
-            await _uow.SaveChangesAsync(cancellationToken);
-
             foreach (var (chunkId, chunkText) in toEnqueue)
                 await _embeddings.EnqueueEmbeddingAsync(chunkId, chunkText, cancellationToken);
+
+            job.Status = JobStatus.Completed;
+            job.Result = JsonSerializer.Serialize(new { chunks = chunkIndex });
+            job.NextAttemptAt = null;
+            job.LeaseExpiresAt = null;
+            job.LeaseId = null;
+
+            await _uow.SaveChangesAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await ReleaseInProgressBestEffortAsync(jobId);
+            await ReleaseInProgressBestEffortAsync(jobId, lease.LeaseId);
             throw;
         }
-        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException)
+        catch (Exception ex)
         {
-            if (job is null)
+            var permanent = IsPermanentFailure(ex);
+            var error = DescribeException(ex);
+
+            try
             {
-                await ReleaseInProgressBestEffortAsync(jobId);
-                throw;
+                var attempt = job?.AttemptCount ?? 1;
+                var result = await _jobs.RecordFailureAsync(
+                    jobId,
+                    lease.LeaseId,
+                    error,
+                    permanent,
+                    Math.Max(1, options.MaxAttempts),
+                    CalculateRetryDelay(attempt, options),
+                    cancellationToken);
+
+                _logger.LogError(
+                    ex,
+                    "Ingest job processing failed. jobId={JobId} correlationId={CorrelationId} attempt={Attempt} permanent={Permanent} outcome={Outcome}",
+                    jobId,
+                    job?.CorrelationId ?? jobId.ToString("N"),
+                    attempt,
+                    permanent,
+                    result);
+
+                if (result is JobFailureResult.Failed or JobFailureResult.Ignored)
+                    return;
+            }
+            catch (Exception stateException)
+            {
+                _logger.LogError(
+                    stateException,
+                    "Could not persist ingest job failure state. jobId={JobId} correlationId={CorrelationId} originalError={OriginalError}",
+                    jobId,
+                    job?.CorrelationId ?? jobId.ToString("N"),
+                    error);
+                await ReleaseInProgressBestEffortAsync(jobId, lease.LeaseId);
             }
 
-            job.Status = JobStatus.Failed;
-            job.Result = ex.Message;
-            await _uow.SaveChangesAsync(cancellationToken);
-        }
-        catch
-        {
-            await ReleaseInProgressBestEffortAsync(jobId);
             throw;
         }
     }
 
-    private async Task ReleaseInProgressBestEffortAsync(Guid jobId)
+    private async Task ReleaseInProgressBestEffortAsync(Guid jobId, Guid leaseId)
     {
         try
         {
-            await _jobs.ReleaseInProgressAsync(jobId, CancellationToken.None);
+            await _jobs.ReleaseInProgressAsync(jobId, leaseId, CancellationToken.None);
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Failed to release ingest job after processing failure or cancellation. jobId={JobId}",
-                jobId);
+                "Failed to release ingest job after processing failure or cancellation. jobId={JobId} leaseId={LeaseId}",
+                jobId,
+                leaseId);
         }
+    }
+
+    private static bool IsPermanentFailure(Exception exception)
+        => exception is IngestJobPermanentException
+            or ArgumentException
+            or FormatException
+            or JsonException;
+
+    private static string DescribeException(Exception exception)
+    {
+        var message = string.IsNullOrWhiteSpace(exception.Message)
+            ? "No error message was provided."
+            : exception.Message;
+        return $"{exception.GetType().Name}: {message}";
+    }
+
+    private static TimeSpan CalculateRetryDelay(int attempt, IngestJobProcessingOptions options)
+    {
+        var safeAttempt = Math.Max(1, attempt);
+        var initial = Math.Max(0, options.InitialDelaySeconds);
+        var multiplier = Math.Max(0, options.BackoffMultiplier);
+        var maximum = Math.Max(0, options.MaxDelaySeconds);
+        var delay = initial * Math.Pow(multiplier, safeAttempt - 1);
+        return TimeSpan.FromSeconds(Math.Clamp(Math.Round(delay), 0, maximum));
     }
 
     private async Task<DocumentChunk> AddChunkAsync(Document doc, string text, int chunkIndex, ChunkingRun run, Domain.Chunking.ChunkRange range, CancellationToken cancellationToken)
@@ -168,23 +230,30 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
 
     private async Task<JobRecord> RequireJobAsync(Guid jobId, CancellationToken cancellationToken)
         => await _jobs.GetByIdAsync(jobId, cancellationToken)
-           ?? throw new InvalidOperationException("Job not found");
+           ?? throw new IngestJobPermanentException("Job not found");
 
     private static IngestJobPayload RequirePayload(string payloadJson)
     {
-        var payload = JsonSerializer.Deserialize<IngestJobPayload>(payloadJson);
-        if (payload == null || string.IsNullOrWhiteSpace(payload.DocumentId))
-            throw new ArgumentException("invalid payload");
+        try
+        {
+            var payload = JsonSerializer.Deserialize<IngestJobPayload>(payloadJson);
+            if (payload == null || string.IsNullOrWhiteSpace(payload.DocumentId))
+                throw new IngestJobPermanentException("Invalid ingest job payload");
 
-        return payload;
+            return payload;
+        }
+        catch (JsonException ex)
+        {
+            throw new IngestJobPermanentException("Invalid ingest job payload", ex);
+        }
     }
 
     private async Task<Document> RequireDocumentAsync(string documentId, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(documentId, out var docId) || docId == Guid.Empty)
-            throw new FormatException("invalid document id");
+            throw new IngestJobPermanentException("Invalid document id");
 
         return await _documents.GetByIdAsync(docId, cancellationToken)
-               ?? throw new InvalidOperationException("document not found");
+               ?? throw new IngestJobPermanentException("Document not found");
     }
 }

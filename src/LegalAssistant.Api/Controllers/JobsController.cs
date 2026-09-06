@@ -23,6 +23,14 @@ public sealed class JobsController : ControllerBase
         var job = await _jobs.GetByIdAsync(id, cancellationToken);
         if (job == null) return NotFound();
 
-        return Ok(new JobDto(job.Id, job.Type, job.Status, job.Payload, job.Result, job.CreatedAt, job.UpdatedAt));
+        return Ok(new JobDto(
+            job.Id,
+            job.Type,
+            job.Status,
+            job.Payload,
+            job.Result,
+            job.LastError,
+            job.CreatedAt,
+            job.UpdatedAt));
     }
 }

@@ -65,6 +65,7 @@ public sealed class DocumentCommandService : IDocumentCommandService
             CreatedAt = now,
             UpdatedAt = now
         };
+        job.CorrelationId = job.Id.ToString("N");
 
         await _jobs.AddAsync(job, cancellationToken);
         await _outbox.AddAsync(new OutboxMessageRecord
@@ -110,6 +111,7 @@ public sealed class DocumentCommandService : IDocumentCommandService
             CreatedAt = now,
             UpdatedAt = now
         };
+        job.CorrelationId = job.Id.ToString("N");
 
         await _jobs.AddAsync(job, cancellationToken);
         await _outbox.AddAsync(new OutboxMessageRecord

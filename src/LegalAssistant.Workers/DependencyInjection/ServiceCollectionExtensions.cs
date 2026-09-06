@@ -5,6 +5,7 @@ using LegalAssistant.Application.Jobs.Services;
 using LegalAssistant.Infrastructure.DependencyInjection;
 using LegalAssistant.Infrastructure.Ask;
 using LegalAssistant.Infrastructure.Messaging;
+using LegalAssistant.Infrastructure.Jobs;
 
 namespace LegalAssistant.Workers.DependencyInjection;
 
@@ -18,6 +19,7 @@ public static class ServiceCollectionExtensions
 
         services.AddInfrastructureConsumers();
         services.AddHostedService<QueuedJobOutboxDispatcherHostedService>();
+        services.AddHostedService<StaleIngestJobRecoveryHostedService>();
         services.AddHostedService<AskJobOutboxDispatcherHostedService>();
         services.AddHostedService<AskJobWorkerHostedService>();
 

@@ -76,12 +76,13 @@ public sealed class QueuedJobOutboxDispatcherHostedService : BackgroundService
                 MessageType = DocumentIngestMessageNames.MessageType,
                 RoutingKey = DocumentIngestMessageNames.Queue,
                 Payload = job.Payload,
-                CorrelationId = job.Id.ToString("N"),
+                CorrelationId = job.CorrelationId ?? job.Id.ToString("N"),
                 Status = OutboxMessageStatus.Pending,
                 Attempts = 0,
                 Version = 1,
                 CreatedAt = now,
-                UpdatedAt = now
+                UpdatedAt = now,
+                NextAttemptAt = job.NextAttemptAt
             }, cancellationToken);
         }
 

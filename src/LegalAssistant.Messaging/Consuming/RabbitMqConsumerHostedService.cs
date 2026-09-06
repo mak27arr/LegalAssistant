@@ -291,8 +291,8 @@ public sealed class RabbitMqConsumerHostedService<TMessage> : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "RabbitMQ retry publish failed; requeueing original message");
-            SafeNack(channel, eventArgs.DeliveryTag, requeue: true);
+            _logger.LogError(ex, "RabbitMQ retry publish failed; dead-lettering original message");
+            SafeNack(channel, eventArgs.DeliveryTag, requeue: false);
         }
     }
 

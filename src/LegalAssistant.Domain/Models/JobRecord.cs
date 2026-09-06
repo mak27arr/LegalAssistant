@@ -11,6 +11,13 @@ namespace LegalAssistant.Domain.Models
         public JobStatus Status { get; set; }
         public required string Payload { get; set; }
         public string? Result { get; set; }
+        public string? CorrelationId { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public int AttemptCount { get; set; }
+        public string? LastError { get; set; }
+        public DateTime? NextAttemptAt { get; set; }
+        public DateTime? LeaseExpiresAt { get; set; }
+        public Guid? LeaseId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

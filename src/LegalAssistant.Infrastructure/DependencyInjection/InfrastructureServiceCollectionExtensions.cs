@@ -38,6 +38,18 @@ public static class InfrastructureServiceCollectionExtensions
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddRabbitMqMessaging(configuration);
+        services.AddOptions<IngestJobProcessingOptions>().Configure(options =>
+        {
+            var section = configuration.GetSection("RabbitMq:Processing");
+            options.MaxAttempts = section.GetValue<int?>(nameof(IngestJobProcessingOptions.MaxAttempts)) ?? options.MaxAttempts;
+            options.InitialDelaySeconds = section.GetValue<int?>(nameof(IngestJobProcessingOptions.InitialDelaySeconds)) ?? options.InitialDelaySeconds;
+            options.MaxDelaySeconds = section.GetValue<int?>(nameof(IngestJobProcessingOptions.MaxDelaySeconds)) ?? options.MaxDelaySeconds;
+            options.BackoffMultiplier = section.GetValue<double?>(nameof(IngestJobProcessingOptions.BackoffMultiplier)) ?? options.BackoffMultiplier;
+            options.LeaseDurationSeconds = section.GetValue<int?>(nameof(IngestJobProcessingOptions.LeaseDurationSeconds)) ?? options.LeaseDurationSeconds;
+            options.RecoveryIntervalSeconds = section.GetValue<int?>(nameof(IngestJobProcessingOptions.RecoveryIntervalSeconds)) ?? options.RecoveryIntervalSeconds;
+            options.RecoveryBatchSize = section.GetValue<int?>(nameof(IngestJobProcessingOptions.RecoveryBatchSize)) ?? options.RecoveryBatchSize;
+        });
+        services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<IngestJobProcessingOptions>>().Value);
         services.AddRabbitMqTopology<IngestRabbitMqTopology>();
         services.AddRabbitMqTopology<EmbeddingsRabbitMqTopology>();
         services.AddRabbitMqTopology<LegalAssistant.Infrastructure.Ask.AskJobRabbitMqTopology>();

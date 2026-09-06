@@ -19,6 +19,14 @@ public sealed class JobQueryService : IJobQueryService
         var job = await _jobs.GetByIdAsync(jobId, cancellationToken);
         if (job == null) return null;
 
-        return new JobDto(job.Id, job.Type.ToString(), job.Status.ToString(), job.Payload, job.Result, job.CreatedAt, job.UpdatedAt);
+        return new JobDto(
+            job.Id,
+            job.Type,
+            job.Status.ToString(),
+            job.Payload,
+            job.Result,
+            job.LastError,
+            job.CreatedAt,
+            job.UpdatedAt);
     }
 }
