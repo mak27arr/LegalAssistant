@@ -2,12 +2,19 @@ using System.Collections.Concurrent;
 using System.Threading.Channels;
 using LegalAssistant.Application.Ask;
 using LegalAssistant.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace LegalAssistant.Api.Services;
 
 public sealed class InMemoryAskJobEventFanout : IAskJobEventFanout
 {
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Channel<AskJobEventRecord>>> _subscribers = new();
+    private readonly ILogger<InMemoryAskJobEventFanout> _logger;
+
+    public InMemoryAskJobEventFanout(ILogger<InMemoryAskJobEventFanout> logger)
+    {
+        _logger = logger;
+    }
 
     public IAskJobEventSubscription Subscribe(Guid jobId)
     {
@@ -15,7 +22,7 @@ public sealed class InMemoryAskJobEventFanout : IAskJobEventFanout
         {
             SingleReader = true,
             SingleWriter = false,
-            FullMode = BoundedChannelFullMode.DropOldest,
+            FullMode = BoundedChannelFullMode.Wait,
             AllowSynchronousContinuations = false
         });
 
@@ -26,17 +33,27 @@ public sealed class InMemoryAskJobEventFanout : IAskJobEventFanout
         return new Subscription(jobId, subscriptionId, channel, _subscribers);
     }
 
-    public Task PublishAsync(AskJobEventRecord eventRecord, CancellationToken cancellationToken = default)
+    public async Task PublishAsync(AskJobEventRecord eventRecord, CancellationToken cancellationToken = default)
     {
-        if (_subscribers.TryGetValue(eventRecord.JobId, out var subscribers))
+        if (!_subscribers.TryGetValue(eventRecord.JobId, out var subscribers))
+            return;
+
+        foreach (var (subscriptionId, subscriber) in subscribers)
         {
-            foreach (var subscriber in subscribers.Values)
+            try
             {
-                subscriber.Writer.TryWrite(eventRecord);
+                await subscriber.Writer.WriteAsync(eventRecord, cancellationToken).ConfigureAwait(false);
+            }
+            catch (ChannelClosedException)
+            {
+                _logger.LogWarning(
+                    "Ask event could not be delivered because the SSE subscriber channel was closed. " +
+                    "jobId={JobId} eventId={EventId} subscriptionId={SubscriptionId}",
+                    eventRecord.JobId,
+                    eventRecord.Id,
+                    subscriptionId);
             }
         }
-
-        return Task.CompletedTask;
     }
 
     private sealed class Subscription : IAskJobEventSubscription

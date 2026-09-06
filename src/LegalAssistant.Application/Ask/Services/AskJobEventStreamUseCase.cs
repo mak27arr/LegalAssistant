@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Diagnostics.Metrics;
 using LegalAssistant.Application.Ask.Models;
 using LegalAssistant.Application.Auth;
 using LegalAssistant.Domain.Models;
@@ -7,7 +8,14 @@ namespace LegalAssistant.Application.Ask.Services;
 
 public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
 {
-    private enum LiveStepKind { Stop, Heartbeat, Event }
+    private static readonly Meter Metrics = new("LegalAssistant.Ask");
+    private static readonly Counter<long> ReconciledEvents = Metrics.CreateCounter<long>(
+        "ask.sse.reconciled_events",
+        unit: "events",
+        description: "Ask events delivered from the durable event log while an SSE stream was live.");
+    private static readonly TimeSpan DefaultReconciliationInterval = TimeSpan.FromSeconds(5);
+
+    private enum LiveStepKind { Stop, Heartbeat, Reconcile, Event }
 
     private readonly record struct LiveStepResult(LiveStepKind Kind, AskJobEventRecord? EventRecord = null);
 
@@ -15,17 +23,23 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
     private readonly IAskJobRepository _jobs;
     private readonly IAskJobEventFanout _fanout;
     private readonly IUserSessionManager _sessions;
+    private readonly TimeSpan _reconciliationInterval;
 
     public AskJobEventStreamUseCase(
         IAskJobEventQueryService events,
         IAskJobRepository jobs,
         IAskJobEventFanout fanout,
-        IUserSessionManager sessions)
+        IUserSessionManager sessions,
+        TimeSpan? reconciliationInterval = null)
     {
         _events = events;
         _jobs = jobs;
         _fanout = fanout;
         _sessions = sessions;
+        _reconciliationInterval = reconciliationInterval ?? DefaultReconciliationInterval;
+
+        if (_reconciliationInterval <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(reconciliationInterval), "The reconciliation interval must be positive.");
     }
 
     public async IAsyncEnumerable<AskJobStreamItem> StreamEventsAsync(
@@ -51,7 +65,7 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
             var isTerminal = false;
 
             // 1. Replay missed DB events
-            await foreach (var item in ReplayMissedEventsAsync(jobId, lastEventId, latest, cancellationToken).ConfigureAwait(false))
+            await foreach (var item in ReplayMissedEventsAsync(jobId, lastEventId, cancellationToken).ConfigureAwait(false))
             {
                 if (item.EventRecord != null)
                 {
@@ -72,7 +86,7 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
                 yield break;
 
             // 2. Stream live events and heartbeats
-            await foreach (var item in StreamLiveLoopAsync(subscription, sessionId, lastSentEventId, cancellationToken).ConfigureAwait(false))
+            await foreach (var item in StreamLiveLoopAsync(jobId, subscription, sessionId, lastSentEventId, cancellationToken).ConfigureAwait(false))
             {
                 yield return item;
             }
@@ -82,7 +96,6 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
     private async IAsyncEnumerable<AskJobStreamItem> ReplayMissedEventsAsync(
         Guid jobId,
         long lastEventId,
-        AskJobEventRecord? latest,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var replay = await _events.GetSinceAsync(jobId, lastEventId, cancellationToken).ConfigureAwait(false);
@@ -93,6 +106,7 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
     }
 
     private async IAsyncEnumerable<AskJobStreamItem> StreamLiveLoopAsync(
+        Guid jobId,
         IAskJobEventSubscription subscription,
         string? sessionId,
         long initialLastSentEventId,
@@ -101,15 +115,17 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
         using var streamLifetimeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         streamLifetimeCts.CancelAfter(TimeSpan.FromMinutes(10));
         using var heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(20));
+        using var reconciliationTimer = new PeriodicTimer(_reconciliationInterval);
 
         var lastSentEventId = initialLastSentEventId;
         Task<AskJobEventRecord>? readTask = null;
         var heartbeatTask = heartbeatTimer.WaitForNextTickAsync(streamLifetimeCts.Token).AsTask();
+        var reconciliationTask = reconciliationTimer.WaitForNextTickAsync(streamLifetimeCts.Token).AsTask();
 
         while (!streamLifetimeCts.Token.IsCancellationRequested)
         {
             readTask ??= subscription.Reader.ReadAsync(streamLifetimeCts.Token).AsTask();
-            var step = await ReadNextLiveStepAsync(readTask, heartbeatTask).ConfigureAwait(false);
+            var step = await ReadNextLiveStepAsync(readTask, heartbeatTask, reconciliationTask).ConfigureAwait(false);
 
             if (step.Kind == LiveStepKind.Stop)
                 yield break;
@@ -125,6 +141,30 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
                 }
 
                 yield return new AskJobStreamItem(AskJobStreamItemKind.Heartbeat);
+                continue;
+            }
+
+            if (step.Kind == LiveStepKind.Reconcile)
+            {
+                reconciliationTask = reconciliationTimer.WaitForNextTickAsync(streamLifetimeCts.Token).AsTask();
+
+                var missedEvents = await _events
+                    .GetSinceAsync(jobId, lastSentEventId, streamLifetimeCts.Token)
+                    .ConfigureAwait(false);
+
+                foreach (var missedEvent in missedEvents)
+                {
+                    if (missedEvent.Id > 0 && missedEvent.Id <= lastSentEventId)
+                        continue;
+
+                    lastSentEventId = missedEvent.Id;
+                    ReconciledEvents.Add(1);
+                    yield return new AskJobStreamItem(AskJobStreamItemKind.Event, missedEvent, IsReplay: true);
+
+                    if (missedEvent.Status.IsTerminal())
+                        yield break;
+                }
+
                 continue;
             }
 
@@ -146,16 +186,23 @@ public sealed class AskJobEventStreamUseCase : IAskJobEventStreamUseCase
 
     private static async Task<LiveStepResult> ReadNextLiveStepAsync(
         Task<AskJobEventRecord> readTask,
-        Task<bool> heartbeatTask)
+        Task<bool> heartbeatTask,
+        Task<bool> reconciliationTask)
     {
         try
         {
-            var completedTask = await Task.WhenAny(readTask, heartbeatTask).ConfigureAwait(false);
+            var completedTask = await Task.WhenAny(readTask, heartbeatTask, reconciliationTask).ConfigureAwait(false);
 
             if (completedTask == heartbeatTask)
             {
                 var isTickAvailable = await heartbeatTask.ConfigureAwait(false);
                 return isTickAvailable ? new LiveStepResult(LiveStepKind.Heartbeat) : new LiveStepResult(LiveStepKind.Stop);
+            }
+
+            if (completedTask == reconciliationTask)
+            {
+                var isTickAvailable = await reconciliationTask.ConfigureAwait(false);
+                return isTickAvailable ? new LiveStepResult(LiveStepKind.Reconcile) : new LiveStepResult(LiveStepKind.Stop);
             }
 
             var eventRecord = await readTask.ConfigureAwait(false);

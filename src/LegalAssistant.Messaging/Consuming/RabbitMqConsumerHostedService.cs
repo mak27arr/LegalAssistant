@@ -4,11 +4,18 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using System.Diagnostics.Metrics;
 
 namespace LegalAssistant.Messaging;
 
 public sealed class RabbitMqConsumerHostedService<TMessage> : BackgroundService
 {
+    private static readonly Meter Metrics = new("LegalAssistant.Messaging");
+    private static readonly Counter<long> Reconnects = Metrics.CreateCounter<long>(
+        "rabbitmq.consumer.reconnects",
+        unit: "connections",
+        description: "RabbitMQ consumer reconnect attempts after a consumer failure.");
+
     private readonly IRabbitMqConsumerDefinition<TMessage> _definition;
     private readonly IRabbitMqConnectionProvider _connectionProvider;
     private readonly IRabbitMqPublisher _publisher;
@@ -56,6 +63,7 @@ public sealed class RabbitMqConsumerHostedService<TMessage> : BackgroundService
                     _connectionOptions.Value.ReconnectDelay.TotalSeconds);
 
                 _connectionProvider.Reset();
+                Reconnects.Add(1, new KeyValuePair<string, object?>("message_type", typeof(TMessage).Name));
 
                 try
                 {
