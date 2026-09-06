@@ -12,6 +12,7 @@ using LegalAssistant.Infrastructure.Documents;
 using LegalAssistant.Infrastructure.Chunks;
 using LegalAssistant.Infrastructure.Jobs;
 using LegalAssistant.Infrastructure.Messaging;
+using LegalAssistant.Infrastructure.Messaging.Outbox;
 using LegalAssistant.Infrastructure.Rag;
 using LegalAssistant.Infrastructure.Common;
 using LegalAssistant.Infrastructure.Embeddings;
@@ -64,6 +65,12 @@ public static class InfrastructureServiceCollectionExtensions
         {
             services.AddDbContext<LegalAssistantDbContext>(opt => opt.UseNpgsql(conn, o => o.UseVector()));
         }
+
+        services.AddSingleton<OutboxDispatcherMetrics>();
+        services.AddSingleton<IOutboxNotificationListener>(sp =>
+            new PostgresOutboxNotificationListener(
+                conn,
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<PostgresOutboxNotificationListener>>()));
 
         services.AddHttpClient();
         services.AddSingleton<IHtmlToTextConverter, StructuredHtmlToTextConverter>();
