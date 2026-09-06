@@ -22,5 +22,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\LegalAssistant.Api\LegalAssistant.Api.csproj" />
     <ProjectReference Include="..\..\src\LegalAssistant.Application\LegalAssistant.Application.csproj" />
+    <ProjectReference Include="..\..\src\LegalAssistant.Messaging\LegalAssistant.Messaging.csproj" />
   </ItemGroup>
 </Project>

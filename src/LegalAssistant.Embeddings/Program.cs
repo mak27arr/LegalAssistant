@@ -1,25 +1,15 @@
 using LegalAssistant.Logging.DependencyInjection;
 using LegalAssistant.Infrastructure.Health;
 using LegalAssistant.Embeddings.ServiceEndpoints;
+using LegalAssistant.Infrastructure.DependencyInjection;
+using LegalAssistant.Infrastructure.Messaging;
+using LegalAssistant.Messaging;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSingleton<LegalAssistant.Embeddings.Messaging.RabbitMqOptions>(sp =>
-{
-    var config = sp.GetRequiredService<IConfiguration>();
-    return new LegalAssistant.Embeddings.Messaging.RabbitMqOptions
-    {
-        Host = config["RabbitMq:Host"] ?? Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "rabbitmq",
-        Port = int.TryParse(config["RabbitMq:Port"], out var p) ? p : int.TryParse(Environment.GetEnvironmentVariable("RABBITMQ_PORT"), out var ep) ? ep : 5672,
-        User = config["RabbitMq:User"] ?? Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest",
-        Pass = config["RabbitMq:Pass"] ?? Environment.GetEnvironmentVariable("RABBITMQ_PASS") ?? "guest",
-        QueueName = config["RabbitMq:EmbeddingsQueue"] ?? "embeddings:requests",
-    };
-});
-
-builder.Services.Configure<LegalAssistant.Infrastructure.Messaging.RabbitMqProcessingOptions>(
-    builder.Configuration.GetSection("RabbitMq:Processing"));
+builder.Services.AddRabbitMqMessaging(builder.Configuration);
+builder.Services.AddRabbitMqTopology<EmbeddingsRabbitMqTopology>();
 
 builder.Services.AddHttpClient("ollama", (sp, client) =>
 {
@@ -41,7 +31,9 @@ builder.Services.AddSingleton<LegalAssistant.Embeddings.Services.IEmbeddingGener
     return new LegalAssistant.Embeddings.Services.OllamaEmbeddingGenerator(http, model, logger);
 });
 
-builder.Services.AddHostedService<LegalAssistant.Embeddings.Messaging.EmbeddingQueueWorker>();
+builder.Services.AddRabbitMqConsumer<
+    LegalAssistant.Embeddings.Messaging.EmbeddingRequestMessage,
+    LegalAssistant.Embeddings.Messaging.EmbeddingRequestConsumerDefinition>();
 builder.Services.AddEmbeddingsReadinessHealthChecks(builder.Configuration);
 
 builder.Services.AddCentralizedLogging(builder.Configuration, "embeddings");

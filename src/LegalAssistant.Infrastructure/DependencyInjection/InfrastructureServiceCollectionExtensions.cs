@@ -28,6 +28,7 @@ using LegalAssistant.Application.Common;
 using LegalAssistant.Application.Admin.Services;
 using LegalAssistant.Core.Correlation;
 using LegalAssistant.Infrastructure.Admin;
+using LegalAssistant.Messaging;
 
 namespace LegalAssistant.Infrastructure.DependencyInjection;
 
@@ -36,6 +37,11 @@ public static class InfrastructureServiceCollectionExtensions
     // Registers services implemented in the Infrastructure project.
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddRabbitMqMessaging(configuration);
+        services.AddRabbitMqTopology<IngestRabbitMqTopology>();
+        services.AddRabbitMqTopology<EmbeddingsRabbitMqTopology>();
+        services.AddRabbitMqTopology<LegalAssistant.Infrastructure.Ask.AskJobRabbitMqTopology>();
+
         var conn = configuration.GetConnectionString("DefaultConnection");
         if (string.IsNullOrEmpty(conn))
         {
@@ -127,8 +133,8 @@ public static class InfrastructureServiceCollectionExtensions
 
     public static IServiceCollection AddInfrastructureConsumers(this IServiceCollection services)
     {
-        services.AddHostedService<RabbitMqEmbeddingCompletedConsumerHostedService>();
-        services.AddHostedService<RabbitMqIngestConsumerHostedService>();
+        services.AddRabbitMqConsumer<EmbeddingCompletedMessage, RabbitMqEmbeddingCompletedConsumerDefinition>();
+        services.AddRabbitMqConsumer<ReadOnlyMemory<byte>, RabbitMqIngestConsumerDefinition>();
         return services;
     }
 }

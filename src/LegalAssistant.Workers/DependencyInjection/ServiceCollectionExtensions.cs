@@ -3,8 +3,8 @@ using Microsoft.Extensions.Configuration;
 using LegalAssistant.Application.DependencyInjection;
 using LegalAssistant.Application.Jobs.Services;
 using LegalAssistant.Infrastructure.DependencyInjection;
-using LegalAssistant.Infrastructure.Messaging;
 using LegalAssistant.Infrastructure.Ask;
+using LegalAssistant.Infrastructure.Messaging;
 
 namespace LegalAssistant.Workers.DependencyInjection;
 
@@ -16,8 +16,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IIngestJobProcessor, IngestJobProcessor>();
 
-        services.AddHostedService<RabbitMqEmbeddingCompletedConsumerHostedService>();
-        services.AddHostedService<RabbitMqIngestConsumerHostedService>();
+        services.AddInfrastructureConsumers();
         services.AddHostedService<QueuedJobOutboxDispatcherHostedService>();
         services.AddHostedService<AskJobOutboxDispatcherHostedService>();
         services.AddHostedService<AskJobWorkerHostedService>();

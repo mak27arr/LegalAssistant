@@ -1,4 +1,4 @@
-namespace LegalAssistant.Infrastructure.Messaging;
+namespace LegalAssistant.Messaging;
 
 public sealed class RabbitMqProcessingOptions
 {

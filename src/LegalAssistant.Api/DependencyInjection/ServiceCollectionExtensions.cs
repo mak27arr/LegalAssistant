@@ -4,7 +4,9 @@ using LegalAssistant.Api.Common;
 using LegalAssistant.Api.Configuration;
 using LegalAssistant.Api.Services.Auth;
 using LegalAssistant.Application.Auth;
+using LegalAssistant.Domain.Models;
 using LegalAssistant.Infrastructure.Ask;
+using LegalAssistant.Messaging;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -31,7 +33,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICorrelationContext, ApiCorrelationContext>();
         services.AddSingleton<LegalAssistant.Application.Ask.IAskJobEventFanout, InMemoryAskJobEventFanout>();
         services.AddScoped<IAskJobEventStreamService, AskJobEventStreamService>();
-        services.AddHostedService<RabbitMqAskJobEventRelayHostedService>();
+        services.AddRabbitMqConsumer<AskJobEventRecord, RabbitMqAskJobEventRelayConsumerDefinition>();
         services.AddHostedService<RoleBootstrapper>();
         services.AddScoped<IAuthUserProvisioningService, AuthUserProvisioningService>();
         services.AddSingleton(TimeProvider.System);

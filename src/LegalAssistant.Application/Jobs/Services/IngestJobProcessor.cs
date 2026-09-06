@@ -9,6 +9,7 @@ using LegalAssistant.Application.Embeddings;
 using LegalAssistant.Application.Jobs.Models;
 using LegalAssistant.Application.Persistence;
 using LegalAssistant.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace LegalAssistant.Application.Jobs.Services;
 
@@ -22,6 +23,7 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
     private readonly IChunkingRunService _chunkingRunService;
     private readonly IChunkingRunRepository _chunkingRuns;
     private readonly IDocumentContentFetcher _contentFetcher;
+    private readonly ILogger<IngestJobProcessor> _logger;
 
     public IngestJobProcessor(
         IDocumentRepository documents,
@@ -31,7 +33,8 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
         IEmbeddingEnqueueService embeddings,
         IChunkingRunService chunkingRunService,
         IChunkingRunRepository chunkingRuns,
-        IDocumentContentFetcher contentFetcher)
+        IDocumentContentFetcher contentFetcher,
+        ILogger<IngestJobProcessor> logger)
     {
         _documents = documents;
         _chunks = chunks;
@@ -41,6 +44,7 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
         _chunkingRunService = chunkingRunService;
         _chunkingRuns = chunkingRuns;
         _contentFetcher = contentFetcher;
+        _logger = logger;
     }
 
     public async Task ProcessAsync(Guid jobId, CancellationToken cancellationToken = default)
@@ -48,10 +52,10 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
         if (!await _jobs.TryMarkInProgressAsync(jobId, cancellationToken))
             return;
 
-        var job = await RequireJobAsync(jobId, cancellationToken);
-
+        JobRecord? job = null;
         try
         {
+            job = await RequireJobAsync(jobId, cancellationToken);
             var payload = RequirePayload(job.Payload);
             var doc = await RequireDocumentAsync(payload.DocumentId, cancellationToken);
 
@@ -88,17 +92,48 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
             foreach (var (chunkId, chunkText) in toEnqueue)
                 await _embeddings.EnqueueEmbeddingAsync(chunkId, chunkText, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await ReleaseInProgressBestEffortAsync(jobId);
+            throw;
+        }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException)
         {
+            if (job is null)
+            {
+                await ReleaseInProgressBestEffortAsync(jobId);
+                throw;
+            }
+
             job.Status = JobStatus.Failed;
             job.Result = ex.Message;
             await _uow.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            await ReleaseInProgressBestEffortAsync(jobId);
+            throw;
+        }
+    }
+
+    private async Task ReleaseInProgressBestEffortAsync(Guid jobId)
+    {
+        try
+        {
+            await _jobs.ReleaseInProgressAsync(jobId, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to release ingest job after processing failure or cancellation. jobId={JobId}",
+                jobId);
         }
     }
 
     private async Task<DocumentChunk> AddChunkAsync(Document doc, string text, int chunkIndex, ChunkingRun run, Domain.Chunking.ChunkRange range, CancellationToken cancellationToken)
     {
-            var chunkText = NormalizeText(text.Substring(range.Start, range.Length));
+        var chunkText = NormalizeText(text.Substring(range.Start, range.Length));
         var chunk = new DocumentChunk
         {
             Id = Guid.NewGuid(),

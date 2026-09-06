@@ -45,4 +45,27 @@ public sealed class EfJobRepository : IJobRepository
         await _db.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    public async Task<bool> ReleaseInProgressAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        if (_db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            var updated = await _db.Jobs
+                .Where(j => j.Id == id && j.Status == JobStatus.InProgress)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(j => j.Status, JobStatus.Queued)
+                    .SetProperty(j => j.UpdatedAt, _clock.UtcNow), cancellationToken);
+
+            return updated > 0;
+        }
+
+        var job = await _db.Jobs.FirstOrDefaultAsync(j => j.Id == id, cancellationToken);
+        if (job is null || job.Status != JobStatus.InProgress)
+            return false;
+
+        job.Status = JobStatus.Queued;
+        job.UpdatedAt = _clock.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 }
