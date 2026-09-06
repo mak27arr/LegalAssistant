@@ -1,9 +1,9 @@
 using LegalAssistant.Application.Ask;
 using LegalAssistant.Application.Ask.Models;
-using LegalAssistant.Infrastructure.Ask.Models;
 using LegalAssistant.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
-using System.Globalization;
+using Pgvector;
+using Pgvector.EntityFrameworkCore;
 
 namespace LegalAssistant.Infrastructure.Ask;
 
@@ -21,25 +21,30 @@ public sealed class ChunkSearchService : IChunkSearchService
         if (queryEmbedding == null || queryEmbedding.Length == 0)
             return Array.Empty<AskChunkResult>();
 
-        var qv = ToVectorLiteral(queryEmbedding);
+        if (_db.Database.IsInMemory())
+            return await SearchInMemoryAsync(queryEmbedding, topK, cancellationToken);
 
-        // Use pgvector operator directly for ordering: embedding <-> query
-        // NOTE: score here is L2 distance (lower is better).
-        var rows = await _db.Database
-            .SqlQuery<ChunkSearchProjection>($@"
-                SELECT dc.id AS Id,
-                       dc.document_id AS DocumentId,
-                       dc.chunk_index AS ChunkIndex,
-                       dc.text AS Text,
-                       dc.source_url AS SourceUrl,
-                       (dc.embedding <-> CAST({qv} AS vector(768)))::double precision AS Score
-                FROM document_chunks dc
-                INNER JOIN documents d ON dc.document_id = d.id
-                WHERE dc.embedding IS NOT NULL 
-                  AND d.is_deleted = false 
-                  AND dc.chunking_run_id = d.active_chunking_run_id
-                ORDER BY dc.embedding <-> CAST({qv} AS vector(768))
-                LIMIT {topK}")
+        var queryVector = new Vector(queryEmbedding);
+
+        var rows = await _db.Set<LegalAssistant.Infrastructure.Db.Models.DocumentChunkVectorSearchRow>()
+            .Join(
+                _db.Documents.Where(d => !d.IsDeleted),
+                chunk => chunk.DocumentId,
+                document => document.Id,
+                (chunk, document) => new { chunk, document })
+            .Where(x => x.chunk.Embedding != null
+                        && x.chunk.ChunkingRunId == x.document.ActiveChunkingRunId)
+            .OrderBy(x => x.chunk.Embedding!.L2Distance(queryVector))
+            .Take(topK)
+            .Select(x => new
+            {
+                x.chunk.Id,
+                x.chunk.DocumentId,
+                x.chunk.ChunkIndex,
+                x.chunk.Text,
+                x.chunk.SourceUrl,
+                Score = x.chunk.Embedding!.L2Distance(queryVector)
+            })
             .ToListAsync(cancellationToken);
 
         return rows
@@ -47,6 +52,51 @@ public sealed class ChunkSearchService : IChunkSearchService
             .ToList();
     }
 
-    private static string ToVectorLiteral(float[] values)
-        => "[" + string.Join(",", values.Select(v => v.ToString(CultureInfo.InvariantCulture))) + "]";
+    private async Task<IReadOnlyList<AskChunkResult>> SearchInMemoryAsync(
+        float[] queryEmbedding,
+        int topK,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _db.DocumentChunks
+            .AsNoTracking()
+            .Where(c => c.Embedding != null)
+            .Join(
+                _db.Documents.Where(d => !d.IsDeleted),
+                chunk => chunk.DocumentId,
+                document => document.Id,
+                (chunk, document) => new { chunk, document })
+            .Where(x => x.chunk.ChunkingRunId == x.document.ActiveChunkingRunId)
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(x => new
+            {
+                x.chunk,
+                Score = L2Distance(x.chunk.Embedding!.Values, queryEmbedding)
+            })
+            .OrderBy(x => x.Score)
+            .Take(topK)
+            .Select(x => new AskChunkResult(
+                x.chunk.Id,
+                x.chunk.DocumentId,
+                x.chunk.ChunkIndex,
+                x.chunk.Text,
+                x.chunk.SourceUrl,
+                x.Score))
+            .ToList();
+    }
+
+    private static float L2Distance(IReadOnlyList<float> left, IReadOnlyList<float> right)
+    {
+        var dimensions = Math.Min(left.Count, right.Count);
+        var sum = 0f;
+        for (var i = 0; i < dimensions; i++)
+        {
+            var difference = left[i] - right[i];
+            sum += difference * difference;
+        }
+
+        return MathF.Sqrt(sum);
+    }
+
 }

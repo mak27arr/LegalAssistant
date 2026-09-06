@@ -24,6 +24,8 @@ public sealed class RabbitMqEmbeddingRequestPublisher : IEmbeddingEnqueueService
     public async Task EnqueueEmbeddingAsync(
         Guid chunkId,
         string text,
+        Guid? jobId = null,
+        Guid? chunkingRunId = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -37,7 +39,7 @@ public sealed class RabbitMqEmbeddingRequestPublisher : IEmbeddingEnqueueService
 
         await _publisher.PublishAsync(
             new RabbitMqPublishAddress(string.Empty, EmbeddingsRabbitMqTopology.RequestsQueue),
-            new { chunkId, text },
+            new { chunkId, text, jobId, chunkingRunId },
             new RabbitMqMessageMetadata
             {
                 MessageId = chunkId.ToString("N"),

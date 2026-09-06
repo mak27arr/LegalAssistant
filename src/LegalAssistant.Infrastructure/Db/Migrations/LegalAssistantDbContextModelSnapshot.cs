@@ -226,6 +226,18 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<DateTime?>("EmbeddingCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("embedding_completed_at");
+
+                    b.Property<int>("CompletedChunks")
+                        .HasColumnType("integer")
+                        .HasColumnName("completed_chunks");
+
+                    b.Property<int>("FailedChunks")
+                        .HasColumnType("integer")
+                        .HasColumnName("failed_chunks");
+
                     b.Property<Guid>("DocumentId")
                         .HasColumnType("uuid")
                         .HasColumnName("document_id");
@@ -234,6 +246,21 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("params_json");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status")
+                        .HasDefaultValue("InProgress");
+
+                    b.Property<int>("TotalChunks")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_chunks");
 
                     b.Property<string>("StrategyName")
                         .IsRequired()
@@ -367,6 +394,37 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("chunking_run_id");
 
+                    b.Property<int>("EmbeddingAttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("embedding_attempt_count");
+
+                    b.Property<DateTime?>("EmbeddingCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("embedding_completed_at");
+
+                    b.Property<DateTime?>("EmbeddingFailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("embedding_failed_at");
+
+                    b.Property<string>("EmbeddingLastError")
+                        .HasColumnType("text")
+                        .HasColumnName("embedding_last_error");
+
+                    b.Property<string>("EmbeddingStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("embedding_status")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<DateTime?>("EmbeddingStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("embedding_started_at");
+
+                    b.Property<DateTime?>("EmbeddingUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("embedding_updated_at");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -380,6 +438,10 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
                     b.Property<Vector>("Embedding")
                         .HasColumnType("vector(768)")
                         .HasColumnName("embedding");
+
+                    b.Property<Guid?>("JobId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_id");
 
                     b.Property<string>("SourceUrl")
                         .IsRequired()
@@ -397,6 +459,8 @@ namespace LegalAssistant.Infrastructure.Db.Migrations
                     b.HasIndex("ChunkingRunId");
 
                     b.HasIndex("DocumentId");
+
+                    b.HasIndex("JobId", "EmbeddingStatus");
 
                     b.HasIndex("Embedding")
                         .HasDatabaseName("ix_document_chunks_embedding_hnsw")

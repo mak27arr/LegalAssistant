@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text.Json;
+using LegalAssistant.Application.Common;
 using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Chunking.Models;
 using LegalAssistant.Application.Chunking.Services;
@@ -20,9 +21,11 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
     private readonly IJobRepository _jobs;
     private readonly IUnitOfWork _uow;
     private readonly IEmbeddingEnqueueService _embeddings;
+    private readonly IEmbeddingStatusService _embeddingStatuses;
     private readonly IChunkingRunService _chunkingRunService;
     private readonly IChunkingRunRepository _chunkingRuns;
     private readonly IDocumentContentFetcher _contentFetcher;
+    private readonly IClock _clock;
     private readonly IngestJobProcessingOptions _options;
     private readonly ILogger<IngestJobProcessor> _logger;
 
@@ -32,9 +35,11 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
         IJobRepository jobs,
         IUnitOfWork uow,
         IEmbeddingEnqueueService embeddings,
+        IEmbeddingStatusService embeddingStatuses,
         IChunkingRunService chunkingRunService,
         IChunkingRunRepository chunkingRuns,
         IDocumentContentFetcher contentFetcher,
+        IClock clock,
         IngestJobProcessingOptions options,
         ILogger<IngestJobProcessor> logger)
     {
@@ -43,9 +48,11 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
         _jobs = jobs;
         _uow = uow;
         _embeddings = embeddings;
+        _embeddingStatuses = embeddingStatuses;
         _chunkingRunService = chunkingRunService;
         _chunkingRuns = chunkingRuns;
         _contentFetcher = contentFetcher;
+        _clock = clock;
         _options = options;
         _logger = logger;
     }
@@ -88,21 +95,36 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
             {
                 foreach (var range in chunking.GetRanges(text))
                 {
-                    var chunk = await AddChunkAsync(doc, text, ++chunkIndex, run, range, cancellationToken);
+                    var chunk = await AddChunkAsync(doc, text, ++chunkIndex, run, jobId, range, cancellationToken);
                     toEnqueue.Add((chunk.Id, chunk.Text));
                 }
             }
 
-            foreach (var (chunkId, chunkText) in toEnqueue)
-                await _embeddings.EnqueueEmbeddingAsync(chunkId, chunkText, cancellationToken);
+            run.TotalChunks = chunkIndex;
+            run.Status = chunkIndex == 0
+                ? ChunkingRunStatus.Completed
+                : ChunkingRunStatus.EmbeddingInProgress;
+            run.UpdatedAt = _clock.UtcNow;
+            job.Result = IngestJobResultSerializer.Serialize(
+                chunkIndex,
+                chunkIndex == 0 ? EmbeddingStatus.Completed : EmbeddingStatus.Pending);
 
-            job.Status = JobStatus.Completed;
-            job.Result = JsonSerializer.Serialize(new { chunks = chunkIndex });
-            job.NextAttemptAt = null;
-            job.LeaseExpiresAt = null;
-            job.LeaseId = null;
-
+            // Persist chunks before publishing requests. The embedding worker may
+            // complete a request immediately, so the chunk must already exist.
             await _uow.SaveChangesAsync(cancellationToken);
+
+            foreach (var (chunkId, chunkText) in toEnqueue)
+                await _embeddings.EnqueueEmbeddingAsync(chunkId, chunkText, jobId, run.Id, cancellationToken);
+
+            var finalState = await _embeddingStatuses.FinalizeRunAsync(run.Id, jobId, cancellationToken);
+            if (!finalState.RunCompleted && job.Status == JobStatus.InProgress)
+            {
+                job.Status = JobStatus.EmbeddingInProgress;
+                job.LeaseExpiresAt = null;
+                job.LeaseId = null;
+                job.UpdatedAt = _clock.UtcNow;
+                await _uow.SaveChangesAsync(cancellationToken);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -193,7 +215,7 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
         return TimeSpan.FromSeconds(Math.Clamp(Math.Round(delay), 0, maximum));
     }
 
-    private async Task<DocumentChunk> AddChunkAsync(Document doc, string text, int chunkIndex, ChunkingRun run, Domain.Chunking.ChunkRange range, CancellationToken cancellationToken)
+    private async Task<DocumentChunk> AddChunkAsync(Document doc, string text, int chunkIndex, ChunkingRun run, Guid jobId, Domain.Chunking.ChunkRange range, CancellationToken cancellationToken)
     {
         var chunkText = NormalizeText(text.Substring(range.Start, range.Length));
         var chunk = new DocumentChunk
@@ -205,6 +227,8 @@ public sealed class IngestJobProcessor : IIngestJobProcessor
             Text = chunkText,
             CharRange = $"{range.Start}-{range.EndExclusive}",
             SourceUrl = doc.Url,
+            JobId = jobId,
+            EmbeddingStatus = EmbeddingStatus.Pending,
             Embedding = null
         };
 

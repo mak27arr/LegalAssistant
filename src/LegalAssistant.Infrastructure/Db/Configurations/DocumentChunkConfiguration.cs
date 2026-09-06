@@ -34,11 +34,26 @@ public sealed class DocumentChunkConfiguration : IEntityTypeConfiguration<Docume
             .HasColumnType("vector(768)")
             .HasConversion(embeddingConverter);
 
+        b.Property(x => x.EmbeddingStatus)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .HasColumnName("embedding_status")
+            .HasDefaultValue(EmbeddingStatus.Pending)
+            .IsRequired();
+        b.Property(x => x.EmbeddingAttemptCount).HasColumnName("embedding_attempt_count");
+        b.Property(x => x.EmbeddingLastError).HasColumnName("embedding_last_error");
+        b.Property(x => x.EmbeddingStartedAt).HasColumnName("embedding_started_at");
+        b.Property(x => x.EmbeddingCompletedAt).HasColumnName("embedding_completed_at");
+        b.Property(x => x.EmbeddingFailedAt).HasColumnName("embedding_failed_at");
+        b.Property(x => x.EmbeddingUpdatedAt).HasColumnName("embedding_updated_at");
+        b.Property(x => x.JobId).HasColumnName("job_id");
+
         b.HasIndex(x => x.Embedding)
             .HasDatabaseName("ix_document_chunks_embedding_hnsw")
             .HasMethod("hnsw")
             .HasOperators("vector_l2_ops")
             .HasFilter("\"embedding\" IS NOT NULL");
+        b.HasIndex(x => new { x.JobId, x.EmbeddingStatus });
 
         b.Property(x => x.CreatedAt).HasDefaultValueSql("now()").HasColumnName("created_at");
 

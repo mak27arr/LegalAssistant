@@ -47,6 +47,10 @@ export interface DocumentDetailsResponse {
   createdAt: string;
   updatedAt: string;
   chunkCount: number;
+  processingStatus: string | null;
+  embeddingCount: number;
+  completedEmbeddingCount: number;
+  failedEmbeddingCount: number;
 }
 
 export interface ChunkListItemResponse {
@@ -58,6 +62,12 @@ export interface ChunkListItemResponse {
   createdAt: string;
   hasEmbedding: boolean;
   preview: string;
+  embeddingStatus: string;
+  embeddingAttemptCount: number;
+  embeddingLastError: string | null;
+  embeddingStartedAt: string | null;
+  embeddingCompletedAt: string | null;
+  embeddingFailedAt: string | null;
 }
 
 export interface ChunkPageResponse {
@@ -79,6 +89,12 @@ export interface ChunkDetailsResponse {
   sourceUrl: string;
   createdAt: string;
   hasEmbedding: boolean;
+  embeddingStatus: string;
+  embeddingAttemptCount: number;
+  embeddingLastError: string | null;
+  embeddingStartedAt: string | null;
+  embeddingCompletedAt: string | null;
+  embeddingFailedAt: string | null;
 }
 
 export interface JobResponse {
@@ -87,6 +103,7 @@ export interface JobResponse {
   status: string;
   payload: string;
   result: string | null;
+  lastError: string | null;
   createdAt: string;
   updatedAt: string;
 }

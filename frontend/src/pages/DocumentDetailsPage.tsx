@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getDocument } from '../shared/api/client';
 import type { DocumentDetailsResponse } from '../shared/types/api';
+import { StatusPill } from '../shared/ui/StatusPill';
 
 export function DocumentDetailsPage() {
   const navigate = useNavigate();
@@ -71,6 +72,20 @@ export function DocumentDetailsPage() {
             )}
             <span>Chunks</span>
           </div>
+          <div className="metric-card">
+            {document.processingStatus ? <StatusPill status={document.processingStatus} /> : <strong>Unknown</strong>}
+            <span>Processing status</span>
+          </div>
+          <div className="metric-card">
+            <strong>{document.completedEmbeddingCount} / {document.embeddingCount}</strong>
+            <span>Embeddings ready</span>
+          </div>
+          {document.failedEmbeddingCount > 0 ? (
+            <div className="metric-card">
+              <strong>{document.failedEmbeddingCount}</strong>
+              <span>Embeddings failed</span>
+            </div>
+          ) : null}
           <div className="metric-card">
             <strong>{new Date(document.createdAt).toLocaleDateString()}</strong>
             <span>Created</span>

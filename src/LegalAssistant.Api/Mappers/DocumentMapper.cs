@@ -34,5 +34,9 @@ public static class DocumentMapper
             document.Version,
             document.CreatedAt,
             document.UpdatedAt,
-            document.ChunkCount);
+            document.ChunkCount,
+            document.ProcessingStatus,
+            document.EmbeddingCount,
+            document.CompletedEmbeddingCount,
+            document.FailedEmbeddingCount);
 }

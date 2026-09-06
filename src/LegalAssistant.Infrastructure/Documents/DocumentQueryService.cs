@@ -66,18 +66,55 @@ public sealed class DocumentQueryService : IDocumentQueryService
     }
 
     public async Task<DocumentDetailsResult?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-        => await _db.Documents
+    {
+        var document = await _db.Documents
             .AsNoTracking()
             .Where(d => d.Id == id && !d.IsDeleted)
-            .Select(d => new DocumentDetailsResult(
+            .Select(d => new
+            {
                 d.Id,
                 d.Title,
                 d.Url,
                 d.Version,
                 d.CreatedAt,
                 d.UpdatedAt,
-                d.Chunks.Count))
+                d.ActiveChunkingRunId
+            })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (document is null)
+            return null;
+
+        var chunks = _db.DocumentChunks
+            .AsNoTracking()
+            .Where(c => c.DocumentId == id);
+        if (document.ActiveChunkingRunId is Guid runId)
+            chunks = chunks.Where(c => c.ChunkingRunId == runId);
+
+        var chunkSummary = await chunks
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Total = group.Count(),
+                Completed = group.Count(c => c.EmbeddingStatus == LegalAssistant.Domain.Models.EmbeddingStatus.Completed && c.Embedding != null),
+                Failed = group.Count(c => c.EmbeddingStatus == LegalAssistant.Domain.Models.EmbeddingStatus.Failed)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var status = await GetLatestProcessingStatusAsync(id, cancellationToken);
+        return new DocumentDetailsResult(
+            document.Id,
+            document.Title,
+            document.Url,
+            document.Version,
+            document.CreatedAt,
+            document.UpdatedAt,
+            chunkSummary?.Total ?? 0,
+            status,
+            chunkSummary?.Total ?? 0,
+            chunkSummary?.Completed ?? 0,
+            chunkSummary?.Failed ?? 0);
+    }
 
     private async Task<Dictionary<Guid, string>> LoadLatestProcessingStatusesAsync(IReadOnlyCollection<Guid> documentIds, CancellationToken cancellationToken)
     {
@@ -103,6 +140,24 @@ public sealed class DocumentQueryService : IDocumentQueryService
         }
 
         return statuses;
+    }
+
+    private async Task<string?> GetLatestProcessingStatusAsync(Guid documentId, CancellationToken cancellationToken)
+    {
+        var jobs = await _db.Jobs
+            .AsNoTracking()
+            .Where(j => j.Type == "ingest")
+            .OrderByDescending(j => j.CreatedAt)
+            .Select(j => new { j.Payload, j.Status })
+            .ToListAsync(cancellationToken);
+
+        foreach (var job in jobs)
+        {
+            if (TryReadDocumentId(job.Payload) == documentId)
+                return job.Status.ToString();
+        }
+
+        return null;
     }
 
     private static Guid? TryReadDocumentId(string payload)

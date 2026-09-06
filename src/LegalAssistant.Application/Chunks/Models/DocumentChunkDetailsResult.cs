@@ -8,4 +8,10 @@ public sealed record DocumentChunkDetailsResult(
     string CharRange,
     string SourceUrl,
     DateTime CreatedAt,
-    bool HasEmbedding);
+    bool HasEmbedding,
+    string EmbeddingStatus,
+    int EmbeddingAttemptCount,
+    string? EmbeddingLastError,
+    DateTime? EmbeddingStartedAt,
+    DateTime? EmbeddingCompletedAt,
+    DateTime? EmbeddingFailedAt);

@@ -6,5 +6,10 @@ namespace LegalAssistant.Application.Embeddings;
 
 public interface IEmbeddingEnqueueService
 {
-    Task EnqueueEmbeddingAsync(Guid chunkId, string text, CancellationToken cancellationToken = default);
+    Task EnqueueEmbeddingAsync(
+        Guid chunkId,
+        string text,
+        Guid? jobId = null,
+        Guid? chunkingRunId = null,
+        CancellationToken cancellationToken = default);
 }

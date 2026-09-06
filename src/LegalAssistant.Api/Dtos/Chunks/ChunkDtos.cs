@@ -17,7 +17,13 @@ public sealed record ChunkListItemDto(
     string SourceUrl,
     DateTime CreatedAt,
     bool HasEmbedding,
-    string Preview);
+    string Preview,
+    string EmbeddingStatus,
+    int EmbeddingAttemptCount,
+    string? EmbeddingLastError,
+    DateTime? EmbeddingStartedAt,
+    DateTime? EmbeddingCompletedAt,
+    DateTime? EmbeddingFailedAt);
 
 public sealed record ChunkPageResponse(
     IReadOnlyList<ChunkListItemDto> Items,
@@ -44,4 +50,10 @@ public sealed record ChunkDetailsDto(
     string CharRange,
     string SourceUrl,
     DateTime CreatedAt,
-    bool HasEmbedding);
+    bool HasEmbedding,
+    string EmbeddingStatus,
+    int EmbeddingAttemptCount,
+    string? EmbeddingLastError,
+    DateTime? EmbeddingStartedAt,
+    DateTime? EmbeddingCompletedAt,
+    DateTime? EmbeddingFailedAt);

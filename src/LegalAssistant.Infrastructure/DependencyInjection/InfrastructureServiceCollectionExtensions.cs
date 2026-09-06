@@ -25,6 +25,7 @@ using LegalAssistant.Application.Chunks;
 using LegalAssistant.Application.Rag.Services;
 using LegalAssistant.Application.Rag;
 using LegalAssistant.Application.Common;
+using LegalAssistant.Application.Embeddings;
 using LegalAssistant.Application.Admin.Services;
 using LegalAssistant.Core.Correlation;
 using LegalAssistant.Infrastructure.Admin;
@@ -119,6 +120,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDocumentChunkQueryService, DocumentChunkQueryService>();
         services.AddScoped<IDocumentStatsQueryService, DocumentStatsQueryService>();
         services.AddScoped<IJobRepository, EfJobRepository>();
+        services.AddScoped<IEmbeddingStatusService, EmbeddingStatusService>();
+        services.AddScoped<IEmbeddingReplayService, EmbeddingReplayService>();
         services.AddScoped<IJobQueue, EfJobQueue>();
         services.AddScoped<IDocumentChunkRepository, EfDocumentChunkRepository>();
         services.AddScoped<IAdminUserQueryService, AdminUserQueryService>();

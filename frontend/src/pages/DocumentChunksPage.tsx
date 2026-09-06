@@ -126,6 +126,7 @@ export function DocumentChunksPage() {
                   <th>Chunk</th>
                   <th>Range</th>
                   <th>Embedding</th>
+                  <th>Attempts</th>
                   <th>Preview</th>
                 </tr>
               </thead>
@@ -146,7 +147,11 @@ export function DocumentChunksPage() {
                   >
                     <td>#{chunk.chunkIndex}</td>
                     <td>{chunk.charRange}</td>
-                    <td>{chunk.hasEmbedding ? 'yes' : 'no'}</td>
+                    <td>
+                      <div>{chunk.embeddingStatus}</div>
+                      {chunk.embeddingLastError ? <div className="table-subtitle">{chunk.embeddingLastError}</div> : null}
+                    </td>
+                    <td>{chunk.embeddingAttemptCount}</td>
                     <td>
                       <div className="table-subtitle">{chunk.preview}</div>
                     </td>
@@ -212,6 +217,8 @@ export function DocumentChunksPage() {
                 <p className="tracked-meta">Chunk ID: {modal.chunk.chunkId}</p>
                 <p className="tracked-meta">Range: {modal.chunk.charRange}</p>
                 <p className="tracked-meta">Source URL: {modal.chunk.sourceUrl}</p>
+                <p className="tracked-meta">Embedding: {modal.chunk.embeddingStatus} (attempts: {modal.chunk.embeddingAttemptCount})</p>
+                {modal.chunk.embeddingLastError ? <div className="inline-error">{modal.chunk.embeddingLastError}</div> : null}
                 <pre className="chunk-text">{modal.chunk.text}</pre>
               </div>
             ) : null}

@@ -8,4 +8,10 @@ public sealed record DocumentChunkListItemResult(
     string SourceUrl,
     DateTime CreatedAt,
     bool HasEmbedding,
-    string Preview);
+    string Preview,
+    string EmbeddingStatus,
+    int EmbeddingAttemptCount,
+    string? EmbeddingLastError,
+    DateTime? EmbeddingStartedAt,
+    DateTime? EmbeddingCompletedAt,
+    DateTime? EmbeddingFailedAt);

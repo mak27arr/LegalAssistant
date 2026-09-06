@@ -14,7 +14,13 @@ public static class ChunkMapper
             chunk.SourceUrl,
             chunk.CreatedAt,
             chunk.HasEmbedding,
-            chunk.Preview);
+            chunk.Preview,
+            chunk.EmbeddingStatus,
+            chunk.EmbeddingAttemptCount,
+            chunk.EmbeddingLastError,
+            chunk.EmbeddingStartedAt,
+            chunk.EmbeddingCompletedAt,
+            chunk.EmbeddingFailedAt);
 
     public static ChunkPageResponse Map(DocumentChunkPageResult page)
         => new(
@@ -35,5 +41,11 @@ public static class ChunkMapper
             chunk.CharRange,
             chunk.SourceUrl,
             chunk.CreatedAt,
-            chunk.HasEmbedding);
+            chunk.HasEmbedding,
+            chunk.EmbeddingStatus,
+            chunk.EmbeddingAttemptCount,
+            chunk.EmbeddingLastError,
+            chunk.EmbeddingStartedAt,
+            chunk.EmbeddingCompletedAt,
+            chunk.EmbeddingFailedAt);
 }

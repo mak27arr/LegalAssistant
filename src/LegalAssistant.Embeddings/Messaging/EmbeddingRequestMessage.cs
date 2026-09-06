@@ -13,6 +13,12 @@ public sealed record EmbeddingRequestMessage
     [JsonPropertyName("text")]
     public string? Text { get; init; }
 
+    [JsonPropertyName("jobId")]
+    public Guid? JobId { get; init; }
+
+    [JsonPropertyName("chunkingRunId")]
+    public Guid? ChunkingRunId { get; init; }
+
     [JsonIgnore]
     public Guid EffectiveChunkId => ChunkId == Guid.Empty ? Chunk_Id : ChunkId;
 }

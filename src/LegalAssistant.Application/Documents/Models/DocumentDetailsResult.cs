@@ -7,4 +7,8 @@ public sealed record DocumentDetailsResult(
     int Version,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    int ChunkCount);
+    int ChunkCount,
+    string? ProcessingStatus,
+    int EmbeddingCount,
+    int CompletedEmbeddingCount,
+    int FailedEmbeddingCount);

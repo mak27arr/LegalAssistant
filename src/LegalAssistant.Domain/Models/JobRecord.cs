@@ -2,7 +2,7 @@ using System;
 
 namespace LegalAssistant.Domain.Models
 {
-    public enum JobStatus { Queued, InProgress, Completed, Failed }
+    public enum JobStatus { Queued, InProgress, EmbeddingInProgress, Completed, Failed }
 
     public class JobRecord
     {

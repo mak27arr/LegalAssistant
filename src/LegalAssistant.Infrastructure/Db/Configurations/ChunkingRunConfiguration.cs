@@ -28,6 +28,18 @@ public sealed class ChunkingRunConfiguration : IEntityTypeConfiguration<Chunking
             .HasColumnName("params_json")
             .IsRequired();
 
+        builder.Property(x => x.Status)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .HasColumnName("status")
+            .HasDefaultValue(ChunkingRunStatus.InProgress)
+            .IsRequired();
+        builder.Property(x => x.TotalChunks).HasColumnName("total_chunks");
+        builder.Property(x => x.CompletedChunks).HasColumnName("completed_chunks");
+        builder.Property(x => x.FailedChunks).HasColumnName("failed_chunks");
+        builder.Property(x => x.LastError).HasColumnName("last_error");
+        builder.Property(x => x.EmbeddingCompletedAt).HasColumnName("embedding_completed_at");
+
         builder.Property(x => x.CreatedAt)
             .HasColumnName("created_at")
             .IsRequired();

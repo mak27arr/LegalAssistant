@@ -46,7 +46,13 @@ public sealed class DocumentChunkQueryService : IDocumentChunkQueryService
                 c.SourceUrl,
                 c.CreatedAt,
                 c.Embedding != null,
-                c.Text.Length <= 30 ? c.Text : c.Text.Substring(0, 30)))
+                c.Text.Length <= 30 ? c.Text : c.Text.Substring(0, 30),
+                c.EmbeddingStatus.ToString(),
+                c.EmbeddingAttemptCount,
+                c.EmbeddingLastError,
+                c.EmbeddingStartedAt,
+                c.EmbeddingCompletedAt,
+                c.EmbeddingFailedAt))
             .ToListAsync(cancellationToken);
 
         return new DocumentChunkPageResult(
@@ -71,7 +77,13 @@ public sealed class DocumentChunkQueryService : IDocumentChunkQueryService
                 c.CharRange,
                 c.SourceUrl,
                 c.CreatedAt,
-                c.Embedding != null))
+                c.Embedding != null,
+                c.EmbeddingStatus.ToString(),
+                c.EmbeddingAttemptCount,
+                c.EmbeddingLastError,
+                c.EmbeddingStartedAt,
+                c.EmbeddingCompletedAt,
+                c.EmbeddingFailedAt))
             .FirstOrDefaultAsync(cancellationToken);
 
     private static int NormalizePageSize(int pageSize)

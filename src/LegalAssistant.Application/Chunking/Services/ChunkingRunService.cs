@@ -33,6 +33,7 @@ public sealed class ChunkingRunService : IChunkingRunService
             StrategyName = descriptor.StrategyName,
             StrategyVersion = descriptor.StrategyVersion,
             ParamsJson = descriptor.ParamsJson,
+            Status = ChunkingRunStatus.InProgress,
             CreatedAt = now,
             UpdatedAt = now
         };

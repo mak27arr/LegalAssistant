@@ -33,7 +33,7 @@ public sealed class DocumentStatsQueryService : IDocumentStatsQueryService
         return new DocumentStatsResult(
             totalDocuments,
             counts.GetValueOrDefault(JobStatus.Queued),
-            counts.GetValueOrDefault(JobStatus.InProgress),
+            counts.GetValueOrDefault(JobStatus.InProgress) + counts.GetValueOrDefault(JobStatus.EmbeddingInProgress),
             counts.GetValueOrDefault(JobStatus.Completed),
             counts.GetValueOrDefault(JobStatus.Failed));
     }

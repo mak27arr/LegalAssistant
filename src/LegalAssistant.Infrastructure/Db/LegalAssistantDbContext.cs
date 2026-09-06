@@ -1,6 +1,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using LegalAssistant.Domain.Models;
+using LegalAssistant.Infrastructure.Db.Configurations;
 using Npgsql;
 
 namespace LegalAssistant.Infrastructure.Db
@@ -29,6 +30,13 @@ namespace LegalAssistant.Infrastructure.Db
             modelBuilder.HasPostgresExtension("vector");
 
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(LegalAssistantDbContext).Assembly);
+
+            // Pgvector.Vector is intentionally kept out of the InMemory model used
+            // by development/tests. The read model is only needed by PostgreSQL
+            // vector search and is configured explicitly to avoid convention-based
+            // discovery by other providers.
+            if (!string.Equals(Database.ProviderName, "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal))
+                DocumentChunkVectorSearchRowConfiguration.Configure(modelBuilder);
 
             base.OnModelCreating(modelBuilder);
         }
