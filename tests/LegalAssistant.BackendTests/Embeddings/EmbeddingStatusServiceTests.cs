@@ -107,6 +107,39 @@ public sealed class EmbeddingStatusServiceTests
         Assert.Equal(JobStatus.Completed, job.Status);
     }
 
+    [Fact]
+    public async Task LateFailureAfterCompletion_ShouldNotRegressChunkRunOrParentJob()
+    {
+        var clock = new TestClock(new DateTime(2026, 9, 6, 12, 0, 0, DateTimeKind.Utc));
+        await using var db = CreateDbContext();
+        var document = CreateDocument(clock.UtcNow);
+        var job = CreateJob(document.Id, clock.UtcNow);
+        var run = CreateRun(document.Id, clock.UtcNow);
+        var chunk = CreateChunk(document, run, job, 1);
+        db.Documents.Add(document);
+        db.Jobs.Add(job);
+        db.ChunkingRuns.Add(run);
+        db.DocumentChunks.Add(chunk);
+        await db.SaveChangesAsync();
+
+        var service = new EmbeddingStatusService(db, clock);
+        await service.MarkCompletedAsync(chunk.Id, Vector(0.7f), job.Id, run.Id);
+        var result = await service.RecordFailureAsync(
+            chunk.Id,
+            "Late retry reported a malformed result.",
+            terminal: true,
+            job.Id,
+            run.Id);
+
+        Assert.True(result.RunCompleted);
+        Assert.False(result.RunFailed);
+        Assert.Equal(EmbeddingStatus.Completed, chunk.EmbeddingStatus);
+        Assert.Equal(ChunkingRunStatus.Completed, run.Status);
+        Assert.Equal(JobStatus.Completed, job.Status);
+        Assert.Null(chunk.EmbeddingLastError);
+        Assert.Null(job.LastError);
+    }
+
     private static TestDbContext CreateDbContext()
         => new(new DbContextOptionsBuilder<LegalAssistantDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))

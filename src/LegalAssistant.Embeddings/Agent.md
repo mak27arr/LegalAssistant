@@ -13,3 +13,7 @@
 - Keep `Program.cs` minimal.
 - Do not place endpoint bodies or long route handlers in `Program.cs`.
 - Put endpoints in separate files under `ServiceEndpoints/` or `Endpoints/` and expose them through small extension methods.
+
+## Shared Repository Rules
+
+Follow the shared repository rules in `D:\repo\LegalAssistant\.github\copilot-instructions.md`.

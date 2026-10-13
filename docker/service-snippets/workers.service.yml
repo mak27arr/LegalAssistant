@@ -1,15 +1,45 @@
-version: '3.8'
+# Compose fragment for the repository's base file.
+# Use it with:
+# docker compose -f docker/docker-compose.yml -f docker/service-snippets/workers.service.yml up
+# Relative paths are resolved from docker/docker-compose.yml, not this directory.
 
 services:
-  workers:
+  worker-ingest:
     build:
-      context: ./src/LegalAssistant.Workers
-+      dockerfile: Dockerfile
-    image: legalassistant_workers:local
+      context: ..
+      dockerfile: src/LegalAssistant.WorkerIngest/Dockerfile
+    image: legalassistant_worker_ingest:local
     environment:
-      - LOG_PATH=/var/log/myapp/workers.log
+      DOTNET_ENVIRONMENT: ${DOTNET_ENVIRONMENT:-Production}
+      LOG_PATH: /var/log/myapp/worker-ingest.log
     volumes:
       - ./logs:/var/log/myapp
     depends_on:
-      - elasticsearch
-      - filebeat
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
+  worker-ask:
+    build:
+      context: ..
+      dockerfile: src/LegalAssistant.WorkerAsk/Dockerfile
+    image: legalassistant_worker_ask:local
+    environment:
+      DOTNET_ENVIRONMENT: ${DOTNET_ENVIRONMENT:-Production}
+      LOG_PATH: /var/log/myapp/worker-ask.log
+    volumes:
+      - ./logs:/var/log/myapp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      embeddings:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy

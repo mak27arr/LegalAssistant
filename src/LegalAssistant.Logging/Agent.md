@@ -9,3 +9,7 @@
 - Keep entrypoint files minimal when they exist.
 - Do not place long startup routines in `Program.cs`.
 - Put HTTP endpoint-like behavior into dedicated endpoint files instead of the entrypoint.
+
+## Shared Repository Rules
+
+Follow the shared repository rules in `D:\repo\LegalAssistant\.github\copilot-instructions.md`.

@@ -1,8 +1,12 @@
 using System.Text.Json;
 using LegalAssistant.Application.Embeddings;
+using LegalAssistant.Application.Messaging;
+using LegalAssistant.Domain.Models;
 using LegalAssistant.Embeddings.Services;
+using LegalAssistant.Infrastructure.Db;
 using LegalAssistant.Infrastructure.Messaging;
 using LegalAssistant.Messaging;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -17,18 +21,15 @@ public sealed class EmbeddingRequestConsumerDefinition
     };
 
     private readonly IEmbeddingGenerator _generator;
-    private readonly IRabbitMqPublisher _publisher;
     private readonly IOptions<RabbitMqProcessingOptions> _processingOptions;
     private readonly ILogger<EmbeddingRequestConsumerDefinition> _logger;
 
     public EmbeddingRequestConsumerDefinition(
         IEmbeddingGenerator generator,
-        IRabbitMqPublisher publisher,
         IOptions<RabbitMqProcessingOptions> processingOptions,
         ILogger<EmbeddingRequestConsumerDefinition> logger)
     {
         _generator = generator;
-        _publisher = publisher;
         _processingOptions = processingOptions;
         _logger = logger;
     }
@@ -73,20 +74,31 @@ public sealed class EmbeddingRequestConsumerDefinition
             return RabbitMqMessageResult.DeadLetter;
         }
 
-        if (!await status.MarkInProgressAsync(chunkId, request.JobId, request.ChunkingRunId, cancellationToken))
-        {
-            EmbeddingMetrics.DeadLetteredRequestMessages.Add(1);
-            _logger.LogWarning("Embedding request references a missing chunk; dead-lettering message. chunkId={ChunkId}", chunkId);
-            return RabbitMqMessageResult.DeadLetter;
-        }
-
-        _logger.LogInformation("Processing embedding request. chunkId={ChunkId} textLength={TextLength}", chunkId, request.Text.Length);
-
+        var db = scopedServices.GetRequiredService<LegalAssistantDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var transactionClosed = false;
         try
         {
+            // Keep the state transition and the completion outbox insert in the
+            // same transaction. If processing fails, neither the InProgress
+            // update nor a partial completion message is committed.
+            if (!await status.MarkInProgressAsync(chunkId, request.JobId, request.ChunkingRunId, cancellationToken))
+            {
+                EmbeddingMetrics.DeadLetteredRequestMessages.Add(1);
+                _logger.LogWarning("Embedding request references a missing chunk; dead-lettering message. chunkId={ChunkId}", chunkId);
+                await transaction.RollbackAsync(cancellationToken);
+                transactionClosed = true;
+                return RabbitMqMessageResult.DeadLetter;
+            }
+
+            _logger.LogInformation("Processing embedding request. chunkId={ChunkId} textLength={TextLength}", chunkId, request.Text.Length);
+
             var vector = await _generator.GenerateAsync(request.Text, cancellationToken);
             if (vector.Length == 0)
             {
+                await transaction.RollbackAsync(cancellationToken);
+                await transaction.DisposeAsync();
+                transactionClosed = true;
                 await status.RecordFailureAsync(
                     chunkId,
                     "Embedding generator returned an empty vector.",
@@ -99,23 +111,78 @@ public sealed class EmbeddingRequestConsumerDefinition
                 return RabbitMqMessageResult.DeadLetter;
             }
 
-            await _publisher.PublishAsync(
-                new RabbitMqPublishAddress(string.Empty, EmbeddingsRabbitMqTopology.CompletedQueue),
-                new EmbeddingCompletedMessage(chunkId, vector, request.JobId, request.ChunkingRunId),
-                new RabbitMqMessageMetadata
-                {
-                    MessageId = $"{chunkId:N}:completed",
-                    CorrelationId = correlationId,
-                    MessageType = "embedding.completed"
-                },
+            var outbox = scopedServices.GetRequiredService<IMessageOutboxWriter>();
+            var deduplicationKey = $"{chunkId:N}:completed";
+            var alreadyRecorded = await db.OutboxMessages.AnyAsync(
+                x => x.Owner == OutboxMessageOwners.Embeddings &&
+                     x.MessageType == EmbeddingCompletedMessageNames.MessageType &&
+                     x.DeduplicationKey == deduplicationKey,
                 cancellationToken);
 
-            _logger.LogInformation("Published embeddings:completed. chunkId={ChunkId} vectorDimensions={Dimensions}", chunkId, vector.Length);
+            if (!alreadyRecorded)
+            {
+                await outbox.AddAsync(new OutboxMessageRecord
+                {
+                    Id = Guid.NewGuid(),
+                    Owner = OutboxMessageOwners.Embeddings,
+                    JobId = request.JobId,
+                    DeduplicationKey = deduplicationKey,
+                    MessageType = EmbeddingCompletedMessageNames.MessageType,
+                    RoutingKey = EmbeddingCompletedMessageNames.Queue,
+                    Payload = JsonSerializer.Serialize(
+                        new EmbeddingCompletedMessage(chunkId, vector, request.JobId, request.ChunkingRunId)),
+                    CorrelationId = correlationId,
+                    Status = OutboxMessageStatus.Pending,
+                    Attempts = 0,
+                    Version = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    NextAttemptAt = DateTime.UtcNow
+                }, cancellationToken);
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            transactionClosed = true;
+
+            _logger.LogInformation("Recorded embeddings:completed in the embeddings outbox. chunkId={ChunkId} vectorDimensions={Dimensions}", chunkId, vector.Length);
 
             return RabbitMqMessageResult.Ack;
         }
+        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            if (!transactionClosed)
+            {
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                }
+                catch (Exception rollbackException)
+                {
+                    _logger.LogError(rollbackException,
+                        "Could not roll back embedding request during shutdown; preserving cancellation. chunkId={ChunkId} jobId={JobId} runId={RunId} correlationId={CorrelationId}",
+                        chunkId, request.JobId, request.ChunkingRunId, correlationId);
+                }
+            }
+
+            _logger.LogDebug(ex,
+                "Embedding request cancelled during shutdown; not recording a business failure. chunkId={ChunkId} jobId={JobId} runId={RunId} correlationId={CorrelationId}",
+                chunkId, request.JobId, request.ChunkingRunId, correlationId);
+            throw;
+        }
         catch (Exception ex)
         {
+            if (!transactionClosed)
+            {
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                }
+                catch (Exception rollbackException)
+                {
+                    _logger.LogWarning(rollbackException, "Could not roll back embedding request transaction. chunkId={ChunkId}", chunkId);
+                }
+            }
             var terminal = IsFinalAttempt(context.Metadata.Headers);
             try
             {
@@ -126,10 +193,15 @@ public sealed class EmbeddingRequestConsumerDefinition
                     request.JobId,
                     request.ChunkingRunId,
                     cancellationToken);
+                _logger.LogWarning(ex,
+                    "Embedding request failed and failure status was recorded before transport retry or dead-letter. chunkId={ChunkId} jobId={JobId} runId={RunId} correlationId={CorrelationId} terminal={Terminal}",
+                    chunkId, request.JobId, request.ChunkingRunId, correlationId, terminal);
             }
             catch (Exception stateException)
             {
-                _logger.LogError(stateException, "Could not persist embedding failure state. chunkId={ChunkId}", chunkId);
+                _logger.LogError(stateException,
+                    "Could not persist embedding failure state; preserving the original request exception. chunkId={ChunkId} jobId={JobId} runId={RunId} correlationId={CorrelationId} originalException={OriginalException}",
+                    chunkId, request.JobId, request.ChunkingRunId, correlationId, ex);
             }
 
             if (terminal)

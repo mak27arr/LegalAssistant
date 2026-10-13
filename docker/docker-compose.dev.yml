@@ -43,8 +43,6 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       LOG_PATH: /var/log/myapp/embeddings.log
-    ports:
-      - "8080:80"
     depends_on:
       - ollama-init
     volumes:
@@ -75,10 +73,17 @@ services:
     volumes:
       - ./logs:/var/log/myapp
 
-  worker:
+  worker-ingest:
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      LOG_PATH: /var/log/myapp/workers.log
+      DOTNET_ENVIRONMENT: Development
+      LOG_PATH: /var/log/myapp/worker-ingest.log
+    volumes:
+      - ./logs:/var/log/myapp
+
+  worker-ask:
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      LOG_PATH: /var/log/myapp/worker-ask.log
       Rag__DefaultTopK: ${RAG_DEFAULT_TOPK:-5}
       Rag__MaxTopK: ${RAG_MAX_TOP_K:-20}
       Rag__PromptTokenBudget: ${RAG_PROMPT_TOKEN_BUDGET:-6000}

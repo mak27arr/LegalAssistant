@@ -60,3 +60,7 @@ Use names like:
 ## Goal
 
 Tests in this project should validate backend behavior quickly, predictably, and without infrastructure dependencies.
+
+## Shared Repository Rules
+
+Follow the shared repository rules in `D:\repo\LegalAssistant\.github\copilot-instructions.md`.

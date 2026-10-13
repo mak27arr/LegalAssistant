@@ -22,6 +22,9 @@ public static class ServiceCollectionExtensions
         var path = Environment.GetEnvironmentVariable("LOG_PATH")
                    ?? configuration["Logging:Path"]
                    ?? defaultFile;
+        var instanceId = Environment.GetEnvironmentVariable("HOSTNAME")
+                         ?? Environment.GetEnvironmentVariable("COMPUTERNAME")
+                         ?? Environment.MachineName;
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
@@ -30,6 +33,8 @@ public static class ServiceCollectionExtensions
             .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
             .Enrich.FromLogContext()
             .Enrich.WithProperty("Service", resolvedServiceName ?? "Unknown")
+            .Enrich.WithProperty("InstanceId", instanceId)
+            .WriteTo.Console(new RenderedCompactJsonFormatter())
             .WriteTo.File(new RenderedCompactJsonFormatter(), path, 
                 rollingInterval: RollingInterval.Day,
                 shared: true,

@@ -10,6 +10,7 @@ public static class AskJobOutboxFactory
         => new()
         {
             Id = Guid.NewGuid(),
+            Owner = OutboxMessageOwners.Ask,
             JobId = eventRecord.JobId,
             AskJobEvent = eventRecord,
             MessageType = AskJobMessageNames.GetMessageType(eventRecord.Status),

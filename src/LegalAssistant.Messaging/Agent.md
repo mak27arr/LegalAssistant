@@ -17,3 +17,7 @@
 - Handle connection loss, channel shutdown, cancellation, and reconnect consistently.
 - Use structured logging with correlation IDs. Never log credentials, tokens, or sensitive payloads.
 - Add deterministic unit tests for metadata, serialization, retry policy, topology, and ACK/NACK outcomes.
+
+## Shared Repository Rules
+
+Follow the shared repository rules in `D:\repo\LegalAssistant\.github\copilot-instructions.md`.

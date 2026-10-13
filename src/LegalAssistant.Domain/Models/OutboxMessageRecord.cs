@@ -13,6 +13,7 @@ public enum OutboxMessageStatus
 public class OutboxMessageRecord
 {
     public Guid Id { get; set; }
+    public string Owner { get; set; } = string.Empty;
     public Guid? JobId { get; set; }
     public long? AskJobEventId { get; set; }
     public AskJobEventRecord? AskJobEvent { get; set; }
@@ -29,4 +30,5 @@ public class OutboxMessageRecord
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime? PublishedAt { get; set; }
+    public Guid? LeaseId { get; set; }
 }

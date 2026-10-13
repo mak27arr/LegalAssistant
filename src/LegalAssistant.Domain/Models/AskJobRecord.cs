@@ -25,6 +25,10 @@ public class AskJobRecord
     public string? Error { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public DateTime? StartedAt { get; set; }
+    public int AttemptCount { get; set; }
+    public DateTime? LeaseExpiresAt { get; set; }
+    public Guid? LeaseId { get; set; }
 
     public User? OwnerUser { get; set; }
 }

@@ -1,5 +1,6 @@
 using LegalAssistant.Application.Common;
 using LegalAssistant.Application.Embeddings;
+using LegalAssistant.Application.Messaging;
 using LegalAssistant.Embeddings.Messaging;
 using LegalAssistant.Embeddings.Services;
 using LegalAssistant.Infrastructure.Common;
@@ -8,12 +9,10 @@ using LegalAssistant.Infrastructure.DependencyInjection;
 using LegalAssistant.Infrastructure.Embeddings;
 using LegalAssistant.Infrastructure.Health;
 using LegalAssistant.Infrastructure.Messaging;
+using LegalAssistant.Infrastructure.Messaging.Outbox;
 using LegalAssistant.Logging.DependencyInjection;
 using LegalAssistant.Messaging;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace LegalAssistant.Embeddings.DependencyInjection;
 
@@ -25,6 +24,7 @@ public static class EmbeddingsServiceCollectionExtensions
     {
         services.AddRabbitMqMessaging(configuration);
         services.AddRabbitMqTopology<EmbeddingsRabbitMqTopology>();
+        services.AddOutboxInfrastructure(configuration);
 
         var connectionString = configuration.GetConnectionString("DefaultConnection");
         if (!string.IsNullOrWhiteSpace(connectionString))
@@ -39,7 +39,7 @@ public static class EmbeddingsServiceCollectionExtensions
         }
 
         services.AddSingleton<IClock, SystemClock>();
-        services.AddScoped<IEmbeddingStatusService, EmbeddingStatusService>();
+        services.AddEmbeddingStatusProcessing();
 
         services.AddHttpClient("ollama", (serviceProvider, client) =>
         {
@@ -67,6 +67,8 @@ public static class EmbeddingsServiceCollectionExtensions
         });
 
         services.AddRabbitMqConsumer<EmbeddingRequestMessage, EmbeddingRequestConsumerDefinition>();
+        services.AddScoped<IOutboxMessagePublisher, EmbeddingCompletedOutboxPublisher>();
+        services.AddOutboxDispatcher(configuration, OutboxMessageOwners.Embeddings);
         services.AddEmbeddingsReadinessHealthChecks(configuration);
         services.AddCentralizedLogging(configuration, "embeddings");
 

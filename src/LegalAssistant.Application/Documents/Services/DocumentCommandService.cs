@@ -71,6 +71,7 @@ public sealed class DocumentCommandService : IDocumentCommandService
         await _outbox.AddAsync(new OutboxMessageRecord
         {
             Id = Guid.NewGuid(),
+            Owner = OutboxMessageOwners.Ingest,
             JobId = job.Id,
             DeduplicationKey = job.Id.ToString("N"),
             MessageType = DocumentIngestMessageNames.MessageType,
@@ -118,6 +119,7 @@ public sealed class DocumentCommandService : IDocumentCommandService
         await _outbox.AddAsync(new OutboxMessageRecord
         {
             Id = Guid.NewGuid(),
+            Owner = OutboxMessageOwners.Ingest,
             JobId = job.Id,
             DeduplicationKey = job.Id.ToString("N"),
             MessageType = DocumentIngestMessageNames.MessageType,

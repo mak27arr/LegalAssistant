@@ -23,5 +23,7 @@
     <ProjectReference Include="..\..\src\LegalAssistant.Api\LegalAssistant.Api.csproj" />
     <ProjectReference Include="..\..\src\LegalAssistant.Application\LegalAssistant.Application.csproj" />
     <ProjectReference Include="..\..\src\LegalAssistant.Messaging\LegalAssistant.Messaging.csproj" />
+    <ProjectReference Include="..\..\src\LegalAssistant.WorkerAsk\LegalAssistant.WorkerAsk.csproj" />
+    <ProjectReference Include="..\..\src\LegalAssistant.WorkerIngest\LegalAssistant.WorkerIngest.csproj" />
   </ItemGroup>
 </Project>

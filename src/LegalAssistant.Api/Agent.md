@@ -17,3 +17,7 @@
 - Put endpoints in separate files under `ServiceEndpoints/` or `Endpoints/` and expose them through small extension methods.
 - DI registration classes and `ServiceCollectionExtensions` MUST contain wiring only.
 - Do not place auth validation, database checks, or other runtime logic inside DI registration lambdas when that logic can be moved to a dedicated class, handler, or method.
+
+## Shared Repository Rules
+
+Follow the shared repository rules in `D:\repo\LegalAssistant\.github\copilot-instructions.md`.

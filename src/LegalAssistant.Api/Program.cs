@@ -1,7 +1,6 @@
 using LegalAssistant.Api.DependencyInjection;
-using LegalAssistant.Application.DependencyInjection;
+using LegalAssistant.Api.Composition;
 using LegalAssistant.Infrastructure.Db;
-using LegalAssistant.Infrastructure.DependencyInjection;
 using LegalAssistant.Infrastructure.Health;
 using LegalAssistant.Api.ServiceEndpoints;
 using LegalAssistant.Api.Swagger;
@@ -25,13 +24,12 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.AddInfrastructureServices(builder.Configuration);
-builder.Services.AddApplicationServices();
+builder.Services.AddApiApplicationServices();
 builder.Services.AddCentralizedLogging(builder.Configuration, "api");
 builder.Services.AddApiInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddApiReadinessHealthChecks();
 
 var app = builder.Build();
-await app.Services.ApplyDatabaseMigrationsAsync();
 ConfigurationCheackwarning.LogIfIncomplete(app.Services);
 
 app.UseMiddleware<LegalAssistant.Api.Middleware.GlobalExceptionHandlingMiddleware>();

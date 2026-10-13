@@ -17,6 +17,19 @@ services:
     networks:
       - legal-assistant-net
 
+  migrations:
+    build:
+      context: ..
+      dockerfile: src/LegalAssistant.DatabaseMigrations/Dockerfile
+    restart: "no"
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - legal-assistant-net
+
   redis:
     image: redis:7
     restart: unless-stopped
@@ -70,9 +83,11 @@ services:
       context: ..
       dockerfile: src/LegalAssistant.Embeddings/Dockerfile
     restart: unless-stopped
+    stop_grace_period: 45s
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://0.0.0.0:80
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
       RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}
@@ -81,10 +96,14 @@ services:
       Ollama__BaseUrl: ${OLLAMA_BASE_URL:-http://ollama:11434}
       Ollama__Model: ${OLLAMA_EMBEDDINGS_MODEL:-nomic-embed-text}
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       ollama:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost/health/ready >/dev/null"]
       interval: 10s
@@ -116,6 +135,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost/health/ready >/dev/null"]
       interval: 10s
@@ -123,13 +144,37 @@ services:
       retries: 10
       start_period: 20s
 
-  worker:
+  worker-ingest:
     build:
       context: ..
-      dockerfile: src/LegalAssistant.Workers/Dockerfile
+      dockerfile: src/LegalAssistant.WorkerIngest/Dockerfile
     restart: unless-stopped
+    stop_grace_period: 45s
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}
+      RABBITMQ_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    networks:
+      - legal-assistant-net
+
+  worker-ask:
+    build:
+      context: ..
+      dockerfile: src/LegalAssistant.WorkerAsk/Dockerfile
+    restart: unless-stopped
+    stop_grace_period: 45s
+    environment:
+      DOTNET_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       Rag__DefaultTopK: ${RAG_DEFAULT_TOPK:-5}
       Rag__MaxTopK: ${RAG_MAX_TOPK:-20}
@@ -143,13 +188,16 @@ services:
       Ollama__BaseUrl: ${OLLAMA_BASE_URL:-http://ollama:11434}
       Ollama__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-300}
       Ollama__LlmModel: ${OLLAMA_LLM_MODEL:-llama3:8b}
-    command: dotnet LegalAssistant.Workers.dll
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       embeddings:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     networks:
       - legal-assistant-net
